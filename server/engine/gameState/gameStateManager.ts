@@ -54,6 +54,13 @@ export interface CreateCampaignParams {
   masterTone?: string;
 }
 
+function cloneGameState<T>(obj: T): T {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(obj);
+  }
+  return JSON.parse(JSON.stringify(obj));
+}
+
 export class GameStateManager {
   private activeStates: Map<string, GameState> = new Map();
   private dataDir: string;
@@ -78,8 +85,31 @@ export class GameStateManager {
     return path.join(this.dataDir, `gamestate_${safeId}.json`);
   }
 
+  private persistStateAtomic(workingCopy: GameState): void {
+    this.ensureDataDir();
+    const filePath = this.getStateFilePath(workingCopy.campaignId);
+    const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const serialized = JSON.stringify(workingCopy, null, 2);
+
+    try {
+      fs.writeFileSync(tempPath, serialized, 'utf-8');
+      fs.renameSync(tempPath, filePath);
+    } catch (err) {
+      try {
+        if (fs.existsSync(tempPath)) {
+          fs.unlinkSync(tempPath);
+        }
+      } catch {
+        // ignora se tempPath não existe
+      }
+      console.error(`[GameStateManager] Falha ao persistir gamestate ${workingCopy.campaignId}:`, err);
+      throw err;
+    }
+  }
+
   /**
    * Cria uma nova campanha inicial com fundação estruturada.
+   * Persiste no disco primeiro; somente após o sucesso registra no cache em memória.
    */
   public createCampaign(params: CreateCampaignParams = {}): GameState {
     const campaignId = params.campaignId || `camp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -161,17 +191,18 @@ export class GameStateManager {
       updatedAt: Date.now(),
     };
 
-    this.activeStates.set(campaignId, initialGameState);
-    this.persistToDisk(initialGameState);
-    return initialGameState;
+    const workingCopy = cloneGameState(initialGameState);
+    this.persistStateAtomic(workingCopy);
+    this.activeStates.set(campaignId, cloneGameState(workingCopy));
+    return cloneGameState(workingCopy);
   }
 
   public getGameState(campaignId: string): GameState | null {
     if (!campaignId) return null;
     
-    // 1. Tenta pegar do cache em memória
+    // 1. Tenta pegar do cache em memória (retorna clone isolado)
     if (this.activeStates.has(campaignId)) {
-      return this.activeStates.get(campaignId)!;
+      return cloneGameState(this.activeStates.get(campaignId)!);
     }
 
     // 2. Tenta carregar do disco
@@ -180,8 +211,8 @@ export class GameStateManager {
       if (fs.existsSync(filePath)) {
         const raw = fs.readFileSync(filePath, 'utf-8');
         const state: GameState = JSON.parse(raw);
-        this.activeStates.set(campaignId, state);
-        return state;
+        this.activeStates.set(campaignId, cloneGameState(state));
+        return cloneGameState(state);
       }
     } catch (err) {
       console.warn(`[GameStateManager] Falha ao ler gamestate do disco para ${campaignId}:`, err);
@@ -191,84 +222,90 @@ export class GameStateManager {
   }
 
   public saveGameState(state: GameState): void {
-    state.updatedAt = Date.now();
-    this.activeStates.set(state.campaignId, state);
-    this.persistToDisk(state);
-  }
-
-  private persistToDisk(state: GameState): void {
-    try {
-      this.ensureDataDir();
-      const filePath = this.getStateFilePath(state.campaignId);
-      fs.writeFileSync(filePath, JSON.stringify(state, null, 2), 'utf-8');
-    } catch (err) {
-      console.error(`[GameStateManager] Falha ao persistir gamestate ${state.campaignId}:`, err);
-    }
+    const workingCopy = cloneGameState(state);
+    workingCopy.updatedAt = Date.now();
+    this.persistStateAtomic(workingCopy);
+    this.activeStates.set(workingCopy.campaignId, cloneGameState(workingCopy));
   }
 
   public advanceTurn(campaignId: string): number {
-    const state = this.getGameState(campaignId);
-    if (!state) return 0;
-    state.turn += 1;
-    state.updatedAt = Date.now();
-    this.saveGameState(state);
-    return state.turn;
+    const current = this.getGameState(campaignId);
+    if (!current) return 0;
+    const workingCopy = cloneGameState(current);
+    workingCopy.turn += 1;
+    workingCopy.updatedAt = Date.now();
+    this.persistStateAtomic(workingCopy);
+    this.activeStates.set(campaignId, cloneGameState(workingCopy));
+    return workingCopy.turn;
   }
 
   public updateWorldState(campaignId: string, update: Partial<WorldState>): WorldState | null {
-    const state = this.getGameState(campaignId);
-    if (!state) return null;
-    state.worldState = { ...state.worldState, ...update };
-    state.updatedAt = Date.now();
-    this.saveGameState(state);
-    return state.worldState;
+    const current = this.getGameState(campaignId);
+    if (!current) return null;
+    const workingCopy = cloneGameState(current);
+    workingCopy.worldState = { ...workingCopy.worldState, ...cloneGameState(update) };
+    workingCopy.updatedAt = Date.now();
+    this.persistStateAtomic(workingCopy);
+    this.activeStates.set(campaignId, cloneGameState(workingCopy));
+    return cloneGameState(workingCopy.worldState);
   }
 
   public updateCampaignFoundation(campaignId: string, update: Partial<CampaignFoundation>): CampaignFoundation | null {
-    const state = this.getGameState(campaignId);
-    if (!state) return null;
-    state.foundation = { ...state.foundation, ...update };
-    state.updatedAt = Date.now();
-    this.saveGameState(state);
-    return state.foundation;
+    const current = this.getGameState(campaignId);
+    if (!current) return null;
+    const workingCopy = cloneGameState(current);
+    workingCopy.foundation = { ...workingCopy.foundation, ...cloneGameState(update) };
+    workingCopy.updatedAt = Date.now();
+    this.persistStateAtomic(workingCopy);
+    this.activeStates.set(campaignId, cloneGameState(workingCopy));
+    return cloneGameState(workingCopy.foundation);
   }
 
   public upsertNPC(campaignId: string, npcData: any): void {
-    const state = this.getGameState(campaignId);
-    if (!state) return;
-    const index = state.npcs.findIndex((n) => n.id === npcData.id || n.name.toLowerCase() === npcData.name?.toLowerCase());
+    const current = this.getGameState(campaignId);
+    if (!current) return;
+    const workingCopy = cloneGameState(current);
+    const clonedNpc = cloneGameState(npcData);
+    const index = workingCopy.npcs.findIndex((n) => n.id === clonedNpc.id || (clonedNpc.name && n.name?.toLowerCase() === clonedNpc.name?.toLowerCase()));
     if (index >= 0) {
-      state.npcs[index] = { ...state.npcs[index], ...npcData };
+      workingCopy.npcs[index] = { ...workingCopy.npcs[index], ...clonedNpc };
     } else {
-      state.npcs.push(npcData);
+      workingCopy.npcs.push(clonedNpc);
     }
-    state.updatedAt = Date.now();
-    this.saveGameState(state);
+    workingCopy.updatedAt = Date.now();
+    this.persistStateAtomic(workingCopy);
+    this.activeStates.set(campaignId, cloneGameState(workingCopy));
   }
 
   public upsertQuest(campaignId: string, questData: any): void {
-    const state = this.getGameState(campaignId);
-    if (!state) return;
-    const index = state.quests.findIndex((q) => q.id === questData.id || q.title.toLowerCase() === questData.title?.toLowerCase());
+    const current = this.getGameState(campaignId);
+    if (!current) return;
+    const workingCopy = cloneGameState(current);
+    const clonedQuest = cloneGameState(questData);
+    const index = workingCopy.quests.findIndex((q) => q.id === clonedQuest.id || (clonedQuest.title && q.title?.toLowerCase() === clonedQuest.title?.toLowerCase()));
     if (index >= 0) {
-      state.quests[index] = { ...state.quests[index], ...questData };
+      workingCopy.quests[index] = { ...workingCopy.quests[index], ...clonedQuest };
     } else {
-      state.quests.push(questData);
+      workingCopy.quests.push(clonedQuest);
     }
-    state.updatedAt = Date.now();
-    this.saveGameState(state);
+    workingCopy.updatedAt = Date.now();
+    this.persistStateAtomic(workingCopy);
+    this.activeStates.set(campaignId, cloneGameState(workingCopy));
   }
 
   public deleteCampaign(campaignId: string): boolean {
-    this.activeStates.delete(campaignId);
+    const filePath = this.getStateFilePath(campaignId);
     try {
-      const filePath = this.getStateFilePath(campaignId);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      fs.unlinkSync(filePath);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        // ENOENT: o arquivo já não existe no disco, estado já removido
+      } else {
+        console.error(`[GameStateManager] Erro ao deletar gamestate ${campaignId}:`, err);
+        throw err;
       }
-    } catch {
-      // ignore
     }
+    this.activeStates.delete(campaignId);
     return true;
   }
 
