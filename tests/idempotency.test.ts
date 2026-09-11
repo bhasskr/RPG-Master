@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { GameEngine } from '../server/engine/gameEngine';
 import { GameStateManager } from '../server/engine/gameState/gameStateManager';
 import { MemoryManager } from '../server/engine/memory/memoryManager';
@@ -15,11 +16,8 @@ async function runAllIdempotencyTests() {
   let passed = 0;
   let failed = 0;
 
-  const testBaseDir = path.join(
-    process.cwd(),
-    'data',
-    'test_idem_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)
-  );
+  // Cria diretório temporário único no sistema operacional fora da pasta do projeto
+  const testBaseDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'rpg_idem_test_'));
   const memoryDir = path.join(testBaseDir, 'memory');
   const stateDir = path.join(testBaseDir, 'gamestate');
   const idemDir = path.join(testBaseDir, 'idempotency');
@@ -32,6 +30,8 @@ async function runAllIdempotencyTests() {
   const memoryManager = new MemoryManager(memoryStore);
   const gameStateManager = new GameStateManager(stateDir);
   const idempotencyManager = new IdempotencyManager(idemDir);
+
+  try {
 
   let narratorCallCount = 0;
 
@@ -574,90 +574,91 @@ async function runAllIdempotencyTests() {
   console.log('\n--- CENÁRIO 8: fetchWithRetry diferencia métodos seguros e mutáveis ---');
   try {
     const originalFetch = globalThis.fetch;
-
-    // Subcenário 8.1: POST SEM Idempotency-Key -> NÃO deve retentar na falha de rede (1 tentativa)
-    let postNoKeyAttempts = 0;
-    globalThis.fetch = async () => {
-      postNoKeyAttempts++;
-      throw new Error('Simulated network drop');
-    };
-
-    let postNoKeyThrew = false;
     try {
-      await fetchWithRetry('/api/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'teste' }),
-      }, 3, 10);
-    } catch {
-      postNoKeyThrew = true;
-    }
+      // Subcenário 8.1: POST SEM Idempotency-Key -> NÃO deve retentar na falha de rede (1 tentativa)
+      let postNoKeyAttempts = 0;
+      globalThis.fetch = async () => {
+        postNoKeyAttempts++;
+        throw new Error('Simulated network drop');
+      };
 
-    if (!postNoKeyThrew || postNoKeyAttempts !== 1) {
-      throw new Error(`POST sem Idempotency-Key deveria falhar imediatamente (1 tentativa), mas fez ${postNoKeyAttempts} tentativas.`);
-    }
-
-    // Subcenário 8.2: GET sem chave -> Pode retentar normalmente (3 tentativas)
-    let getAttempts = 0;
-    globalThis.fetch = async () => {
-      getAttempts++;
-      throw new Error('Simulated network drop');
-    };
-
-    let getThrew = false;
-    try {
-      await fetchWithRetry('/api/status', { method: 'GET' }, 3, 10);
-    } catch {
-      getThrew = true;
-    }
-
-    if (!getThrew || getAttempts !== 3) {
-      throw new Error(`GET seguro deveria ter tentado 3 vezes, mas fez ${getAttempts} tentativas.`);
-    }
-
-    // Subcenário 8.3: POST COM Idempotency-Key -> Retenta com segurança mantendo a chave
-    let postWithKeyAttempts = 0;
-    const testKey = generateIdempotencyKey();
-    let sentKeys: string[] = [];
-
-    globalThis.fetch = async (url: any, opts: any) => {
-      postWithKeyAttempts++;
-      const headers = new Headers(opts?.headers || {});
-      sentKeys.push(headers.get('Idempotency-Key') || '');
-      if (postWithKeyAttempts < 3) {
-        throw new Error('Simulated transient drop');
+      let postNoKeyThrew = false;
+      try {
+        await fetchWithRetry('/api/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: 'teste' }),
+        }, 3, 10);
+      } catch {
+        postNoKeyThrew = true;
       }
-      return new Response(JSON.stringify({ success: true }), { status: 200 });
-    };
 
-    const postWithKeyRes = await fetchWithRetry('/api/message', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Idempotency-Key': testKey,
-      },
-      body: JSON.stringify({ message: 'teste com chave' }),
-    }, 3, 10);
+      if (!postNoKeyThrew || postNoKeyAttempts !== 1) {
+        throw new Error(`POST sem Idempotency-Key deveria falhar imediatamente (1 tentativa), mas fez ${postNoKeyAttempts} tentativas.`);
+      }
 
-    if (!postWithKeyRes.ok) {
-      throw new Error('POST com chave deveria ter sido bem-sucedido na 3ª tentativa.');
+      // Subcenário 8.2: GET sem chave -> Pode retentar normalmente (3 tentativas)
+      let getAttempts = 0;
+      globalThis.fetch = async () => {
+        getAttempts++;
+        throw new Error('Simulated network drop');
+      };
+
+      let getThrew = false;
+      try {
+        await fetchWithRetry('/api/status', { method: 'GET' }, 3, 10);
+      } catch {
+        getThrew = true;
+      }
+
+      if (!getThrew || getAttempts !== 3) {
+        throw new Error(`GET seguro deveria ter tentado 3 vezes, mas fez ${getAttempts} tentativas.`);
+      }
+
+      // Subcenário 8.3: POST COM Idempotency-Key -> Retenta com segurança mantendo a chave
+      let postWithKeyAttempts = 0;
+      const testKey = generateIdempotencyKey();
+      let sentKeys: string[] = [];
+
+      globalThis.fetch = async (url: any, opts: any) => {
+        postWithKeyAttempts++;
+        const headers = new Headers(opts?.headers || {});
+        sentKeys.push(headers.get('Idempotency-Key') || '');
+        if (postWithKeyAttempts < 3) {
+          throw new Error('Simulated transient drop');
+        }
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      };
+
+      const postWithKeyRes = await fetchWithRetry('/api/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': testKey,
+        },
+        body: JSON.stringify({ message: 'teste com chave' }),
+      }, 3, 10);
+
+      if (!postWithKeyRes.ok) {
+        throw new Error('POST com chave deveria ter sido bem-sucedido na 3ª tentativa.');
+      }
+
+      if (postWithKeyAttempts !== 3) {
+        throw new Error(`POST com chave deveria ter tentado 3 vezes até o sucesso, mas fez ${postWithKeyAttempts}.`);
+      }
+
+      // Verifica se TODAS as 3 tentativas usaram exatamente a MESMA chave de idempotência
+      const allSameKey = sentKeys.every((k) => k === testKey);
+      if (!allSameKey || sentKeys.length !== 3) {
+        throw new Error(`Tentativas de retry alteraram a chave de idempotência indevidamente! Chaves: ${JSON.stringify(sentKeys)}`);
+      }
+
+      console.log('✅ Cenário 8 PASSOU: fetchWithRetry bloqueia retry cego de POST sem chave e retenta com segurança quando há chave.');
+      passed++;
+    } finally {
+      // Restauração incondicional do fetch global
+      globalThis.fetch = originalFetch;
     }
-
-    if (postWithKeyAttempts !== 3) {
-      throw new Error(`POST com chave deveria ter tentado 3 vezes até o sucesso, mas fez ${postWithKeyAttempts}.`);
-    }
-
-    // Verifica se TODAS as 3 tentativas usaram exatamente a MESMA chave de idempotência
-    const allSameKey = sentKeys.every((k) => k === testKey);
-    if (!allSameKey || sentKeys.length !== 3) {
-      throw new Error(`Tentativas de retry alteraram a chave de idempotência indevidamente! Chaves: ${JSON.stringify(sentKeys)}`);
-    }
-
-    // Restaura fetch global
-    globalThis.fetch = originalFetch;
-
-    console.log('✅ Cenário 8 PASSOU: fetchWithRetry bloqueia retry cego de POST sem chave e retenta com segurança quando há chave.');
-    passed++;
   } catch (err: any) {
     console.error('❌ Cenário 8 FALHOU:', err.message);
     failed++;
@@ -922,15 +923,34 @@ async function runAllIdempotencyTests() {
     failed++;
   }
 
-  // Limpeza do diretório de testes
-  try {
-    fs.rmSync(testBaseDir, { recursive: true, force: true });
-  } catch {
-    // ignore
+  } finally {
+    // Cleanup incondicional do diretório temporário raiz da suíte (sucesso ou falha)
+    try {
+      await fs.promises.rm(testBaseDir, { recursive: true, force: true });
+    } catch (cleanupErr) {
+      console.warn('Aviso ao remover testBaseDir temporário:', cleanupErr);
+    }
+  }
+
+  // Validação explícita de higiene pós-execução:
+  // 1. O diretório temporário não existe mais
+  if (fs.existsSync(testBaseDir)) {
+    throw new Error(`Falha de higiene: diretório temporário de testes ${testBaseDir} ainda existe após cleanup!`);
+  }
+
+  // 2. Não restaram arquivos de teste gerados dentro de data/
+  const projectDataDir = path.join(process.cwd(), 'data');
+  if (fs.existsSync(projectDataDir)) {
+    const dataEntries = fs.readdirSync(projectDataDir);
+    const testArtifacts = dataEntries.filter((name) => name.startsWith('test_idem_') || name.includes('idem_io_'));
+    if (testArtifacts.length > 0) {
+      throw new Error(`Falha de higiene: artefatos de teste encontrados em data/: ${JSON.stringify(testArtifacts)}`);
+    }
   }
 
   console.log('\n===============================================================');
   console.log(`RESULTADO FINAL: ${passed} PASSOU | ${failed} FALHOU`);
+  console.log('Higiene de persistência: testBaseDir removido e data/ limpo com sucesso.');
   console.log('===============================================================');
 
   if (failed > 0) {

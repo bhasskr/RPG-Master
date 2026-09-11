@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Test artifacts and temporary write files
+data/test_*
+data/test_idem_*
+*.tmp.*
