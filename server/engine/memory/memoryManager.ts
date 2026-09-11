@@ -19,6 +19,7 @@ import {
   MessageRole,
   MemoryOperationLog,
   CharacterKnowledgeBundle,
+  ExpectedTurnState,
 } from './types';
 import { FilePersistentMemoryStore } from './filePersistentStore';
 import { SemanticMemoryManager } from './semanticMemory';
@@ -1741,6 +1742,37 @@ export class MemoryManager {
         operation: 'UPDATE',
         functionName: 'replaceMessage',
         entity: `Message: ${messageId}`,
+        campaignId,
+        status: 'error',
+        error: errMsg,
+      });
+      throw err;
+    }
+  }
+
+  async replaceTurnMessages(
+    campaignId: string,
+    userMessage: ChatMessage,
+    assistantMessage: ChatMessage,
+    expected?: ExpectedTurnState
+  ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage }> {
+    try {
+      const result = await this.store.replaceTurnMessages(campaignId, userMessage, assistantMessage, expected);
+      this.recordLog({
+        operation: 'UPDATE',
+        functionName: 'replaceTurnMessages',
+        entity: `Messages: ${userMessage.id}, ${assistantMessage.id}`,
+        campaignId,
+        status: 'success',
+        details: `Par de mensagens (User: ${userMessage.id}, Assistant: ${assistantMessage.id}) substituído com sucesso no turno ${userMessage.turn}`,
+      });
+      return result;
+    } catch (err: unknown) {
+      const errMsg = (err as Error)?.message || String(err);
+      this.recordLog({
+        operation: 'UPDATE',
+        functionName: 'replaceTurnMessages',
+        entity: `Messages: ${userMessage.id}, ${assistantMessage.id}`,
         campaignId,
         status: 'error',
         error: errMsg,

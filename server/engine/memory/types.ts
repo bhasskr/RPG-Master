@@ -214,6 +214,15 @@ export interface RelevantContextOutput {
   formattedSummary: string;
 }
 
+export interface ExpectedTurnState {
+  userMessageId: string;
+  userContent: string;
+  userTurn?: number;
+  assistantMessageId?: string | null;
+  assistantContent?: string | null;
+  assistantTurn?: number;
+}
+
 /**
  * Interface do Store persistente para a Memory Layer
  */
@@ -228,6 +237,12 @@ export interface IPersistentMemoryStore {
   getMessages(campaignId: string, limit?: number): Promise<ChatMessage[]>;
   updateMessage(campaignId: string, messageId: string, updates: Partial<ChatMessage>): Promise<boolean>;
   replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage): Promise<ChatMessage>;
+  replaceTurnMessages(
+    campaignId: string,
+    userMessage: ChatMessage,
+    assistantMessage: ChatMessage,
+    expected?: ExpectedTurnState
+  ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage }>;
   deleteMessage(campaignId: string, messageId: string): Promise<boolean>;
   clearMessages(campaignId: string): Promise<void>;
 }

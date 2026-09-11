@@ -9,6 +9,7 @@ import {
   IPersistentMemoryStore,
   CampaignMemorySnapshot,
   ChatMessage,
+  ExpectedTurnState,
 } from './types';
 
 /**
@@ -267,6 +268,105 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
       // Somente após gravação confirmada no disco, atualiza o cache
       this.messagesCache.set(campaignId, updatedMessages);
       return updatedMessages[index];
+    });
+  }
+
+  async replaceTurnMessages(
+    campaignId: string,
+    userMessage: ChatMessage,
+    assistantMessage: ChatMessage,
+    expected?: ExpectedTurnState
+  ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage }> {
+    await this.ensureInitialized();
+
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      if (!this.messagesCache.has(campaignId)) {
+        await this.loadMessagesFromDisk(campaignId);
+      }
+
+      const currentMessages = this.messagesCache.get(campaignId) || [];
+
+      // Se foi fornecido o estado esperado, valida estritamente antes de aplicar qualquer alteração
+      if (expected) {
+        const userIndex = currentMessages.findIndex((m) => m.id === expected.userMessageId);
+        if (userIndex === -1) {
+          throw new Error(`Conflito detectado: mensagem do jogador ${expected.userMessageId} não encontrada.`);
+        }
+        if (currentMessages[userIndex].content !== expected.userContent) {
+          throw new Error('Conflito detectado: o conteúdo da ação do jogador foi alterado durante a geração.');
+        }
+        if (expected.userTurn !== undefined && currentMessages[userIndex].turn !== expected.userTurn) {
+          throw new Error('Conflito detectado: o turno da mensagem do jogador foi alterado.');
+        }
+
+        if (expected.assistantMessageId) {
+          const assistantIndex = currentMessages.findIndex((m) => m.id === expected.assistantMessageId);
+          if (assistantIndex === -1) {
+            throw new Error(`Conflito detectado: resposta do narrador ${expected.assistantMessageId} não encontrada.`);
+          }
+          if (currentMessages[assistantIndex].content !== expected.assistantContent) {
+            throw new Error('Conflito detectado: a resposta do narrador foi alterada durante a geração.');
+          }
+          if (expected.assistantTurn !== undefined && currentMessages[assistantIndex].turn !== expected.assistantTurn) {
+            throw new Error('Conflito detectado: o turno da resposta do narrador foi alterado.');
+          }
+          if (currentMessages[assistantIndex].metadata?.hasMutations) {
+            throw new Error('Conflito detectado: o estado foi consolidado durante a geração e não pode mais ser editado.');
+          }
+          if (assistantIndex !== currentMessages.length - 1) {
+            throw new Error('Conflito detectado: novas mensagens foram inseridas no histórico após a resposta.');
+          }
+        } else {
+          if (userIndex !== currentMessages.length - 1) {
+            throw new Error('Conflito detectado: novas mensagens foram inseridas no histórico após a ação do usuário.');
+          }
+        }
+      }
+
+      const userIndex = currentMessages.findIndex((m) => m.id === userMessage.id);
+      if (userIndex === -1) {
+        throw new Error(`Mensagem ${userMessage.id} não encontrada para substituição na campanha ${campaignId}.`);
+      }
+
+      // Cria cópia sem mutar o array em cache antes da confirmação em disco
+      const updatedMessages = [...currentMessages];
+      updatedMessages[userIndex] = { ...userMessage };
+
+      const assistantIndex = assistantMessage.id ? updatedMessages.findIndex((m) => m.id === assistantMessage.id) : -1;
+      if (assistantIndex !== -1) {
+        updatedMessages[assistantIndex] = { ...assistantMessage };
+      } else {
+        updatedMessages.splice(userIndex + 1, 0, { ...assistantMessage });
+      }
+
+      const filePath = this.getMessagesFilePath(campaignId);
+      const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const serialized = JSON.stringify(updatedMessages, null, 2);
+
+      try {
+        await fs.writeFile(tempPath, serialized, 'utf-8');
+        await fs.rename(tempPath, filePath);
+      } catch (err) {
+        try {
+          await fs.unlink(tempPath);
+        } catch {
+          // ignore cleanup error
+        }
+        console.error(`[FilePersistentMemoryStore] Falha ao persistir substituição de par de mensagens em ${campaignId}:`, err);
+        // O cache NÃO foi alterado!
+        throw err;
+      }
+
+      // Somente após gravação confirmada no disco, atualiza o cache
+      this.messagesCache.set(campaignId, updatedMessages);
+
+      const finalUser = updatedMessages[userIndex];
+      const finalAssistant = assistantIndex !== -1 ? updatedMessages[assistantIndex] : updatedMessages[userIndex + 1];
+
+      return {
+        userMessage: finalUser,
+        assistantMessage: finalAssistant,
+      };
     });
   }
 

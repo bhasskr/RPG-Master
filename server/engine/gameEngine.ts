@@ -527,7 +527,7 @@ export class GameEngine {
 
     const lastMessage = recentMessages[recentMessages.length - 1];
     let prevUserMessage: ChatMessage | undefined;
-    let assistantMessageToDelete: ChatMessage | null = null;
+    let assistantMessageToReplace: ChatMessage | null = null;
 
     if (lastMessage.role === 'assistant') {
       if (lastMessage.metadata?.hasMutations) {
@@ -536,7 +536,7 @@ export class GameEngine {
       if (lastMessage.metadata?.diceRolls && lastMessage.metadata.diceRolls.length > 0) {
         throw new Error('Ação já resolveu rolagens de dados (D20) que não podem ser recalculadas com segurança.');
       }
-      assistantMessageToDelete = lastMessage;
+      assistantMessageToReplace = lastMessage;
       // Encontrar a mensagem do usuário correspondente
       for (let i = recentMessages.length - 2; i >= 0; i--) {
         if (recentMessages[i].role === 'user') {
@@ -552,19 +552,21 @@ export class GameEngine {
       throw new Error('Nenhuma ação anterior do jogador foi encontrada para editar.');
     }
 
-    // Update the player message in memory
-    await this.memoryManager.updateMessage(campaignId, prevUserMessage.id, {
-      content: newPlayerActionText
-    });
-    const updatedUserMessage = { ...prevUserMessage, content: newPlayerActionText };
+    const initialUserId = prevUserMessage.id;
+    const initialUserContent = prevUserMessage.content;
+    const initialUserTurn = prevUserMessage.turn || gameState.turn || 1;
+    const currentTurn = initialUserTurn;
 
-    if (assistantMessageToDelete) {
-      await this.memoryManager.deleteMessage(campaignId, assistantMessageToDelete.id);
-    }
-    
-    const currentTurn = prevUserMessage.turn || gameState.turn || 1;
+    const initialAssistantId = assistantMessageToReplace ? assistantMessageToReplace.id : null;
+    const initialAssistantContent = assistantMessageToReplace ? assistantMessageToReplace.content : null;
+    const initialAssistantTurn = assistantMessageToReplace ? assistantMessageToReplace.turn : null;
 
-    // Use the same context gathering as processPlayerAction
+    // 1. Representação temporária em memória para a geração (sem persistência prévia)
+    const contextRecentMessages = recentMessages
+      .filter((m) => !assistantMessageToReplace || m.id !== assistantMessageToReplace.id)
+      .map((m) => (m.id === initialUserId ? { ...m, content: newPlayerActionText } : m));
+
+    // 2. Retrieval com o novo texto do jogador (se falhar, nada foi alterado)
     const relevantContext = await this.memoryManager.getRelevantContext({
       campaignId,
       currentLocation: gameState.worldState.currentLocation,
@@ -574,8 +576,6 @@ export class GameEngine {
       targetCharacter: 'narrator',
     });
 
-    // Get recent messages again (without the deleted master message)
-    const newRecentMessages = await this.memoryManager.getRecentMessages(campaignId, 12);
     const systemInstructions = getSystemInstructions(
       gameState.foundation.rulesOfUniverse,
       gameState.foundation.tone || gameState.foundation.masterTone,
@@ -587,7 +587,7 @@ export class GameEngine {
       }
     );
 
-    // Call Narrator
+    // 3. Chamar o Narrador para gerar a nova resposta
     const narratorResponse = await this.narratorService.generateMasterResponse({
       campaignId,
       memoryManager: this.memoryManager,
@@ -601,37 +601,102 @@ export class GameEngine {
       keyInventoryItems: gameState.inventory.items,
       relevantContextOutput: relevantContext,
       relevantContextSummary: relevantContext.formattedSummary,
-      recentMessages: newRecentMessages,
+      recentMessages: contextRecentMessages,
       currentUserInput: newPlayerActionText,
     });
 
-    const masterMessage = await this.memoryManager.recordMessage(
-      campaignId,
-      'assistant',
-      narratorResponse.text,
-      currentTurn,
-      { 
+    if (!narratorResponse || !narratorResponse.text || narratorResponse.text.trim().length === 0) {
+      throw new Error('Narrador retornou uma resposta vazia para a edição da ação do jogador.');
+    }
+
+    // 4. Validação de concorrência antes do commit
+    const freshRecentMessages = await this.memoryManager.getRecentMessages(campaignId, 12);
+    const freshUser = freshRecentMessages.find((m) => m.id === initialUserId);
+    if (!freshUser) {
+      throw new Error('Conflito detectado: a mensagem do jogador foi removida durante a geração.');
+    }
+    if (freshUser.content !== initialUserContent) {
+      throw new Error('Conflito detectado: o conteúdo da ação do jogador foi alterado durante a geração.');
+    }
+    if (freshUser.turn !== initialUserTurn) {
+      throw new Error('Conflito detectado: o turno da mensagem do jogador foi alterado durante a geração.');
+    }
+
+    if (assistantMessageToReplace) {
+      const freshAssistant = freshRecentMessages.find((m) => m.id === initialAssistantId);
+      if (!freshAssistant) {
+        throw new Error('Conflito detectado: a resposta do narrador foi removida por outra operação.');
+      }
+      if (freshAssistant.content !== initialAssistantContent || freshAssistant.turn !== initialAssistantTurn) {
+        throw new Error('Conflito detectado: a resposta do narrador foi modificada durante a geração.');
+      }
+      if (freshAssistant.metadata?.hasMutations) {
+        throw new Error('Conflito detectado: o estado foi consolidado durante a geração e não pode mais ser editado.');
+      }
+      if (freshAssistant.metadata?.diceRolls && freshAssistant.metadata.diceRolls.length > 0) {
+        throw new Error('Conflito detectado: rolagens de dados foram resolvidas durante a geração.');
+      }
+      const lastFresh = freshRecentMessages[freshRecentMessages.length - 1];
+      if (lastFresh.id !== initialAssistantId) {
+        throw new Error('Conflito detectado: novas mensagens foram inseridas no histórico durante a geração.');
+      }
+    } else {
+      const lastFresh = freshRecentMessages[freshRecentMessages.length - 1];
+      if (lastFresh.id !== initialUserId) {
+        throw new Error('Conflito detectado: uma nova mensagem já foi adicionada ao histórico durante a geração.');
+      }
+    }
+
+    // 5. Montar mensagens atualizadas preservando IDs e posições
+    const updatedUserMessage: ChatMessage = {
+      ...prevUserMessage,
+      content: newPlayerActionText,
+      turn: currentTurn,
+    };
+
+    const newAssistantMessage: ChatMessage = {
+      id: assistantMessageToReplace ? assistantMessageToReplace.id : `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      role: 'assistant',
+      content: narratorResponse.text,
+      turn: currentTurn,
+      timestamp: Date.now(),
+      metadata: {
         location: gameState.worldState.currentLocation,
-        diceRolls: narratorResponse.diceRolls,
-        executedTools: narratorResponse.executedTools
+        diceRolls: narratorResponse.diceRolls || [],
+        executedTools: narratorResponse.executedTools || [],
+      },
+    };
+
+    // 6. Commit atômico do par editado sob lock único
+    const commitResult = await this.memoryManager.replaceTurnMessages(
+      campaignId,
+      updatedUserMessage,
+      newAssistantMessage,
+      {
+        userMessageId: initialUserId,
+        userContent: initialUserContent,
+        userTurn: initialUserTurn,
+        assistantMessageId: initialAssistantId,
+        assistantContent: initialAssistantContent,
+        assistantTurn: initialAssistantTurn,
       }
     );
 
-    // Memory Extractor analyzes the edited turn asynchronously
+    // 7. Memory Extractor analisa o turno editado SOMENTE após o commit bem-sucedido
     this.processPostTurnMemoryExtraction(
       campaignId,
       currentTurn,
       gameState,
       newPlayerActionText,
       narratorResponse,
-      masterMessage.id
+      commitResult.assistantMessage.id
     ).catch((err) => {
       console.warn(`[GameEngine] Extração de memória falhou no edit do turno ${currentTurn}:`, err);
     });
 
     return {
-      playerMessage: updatedUserMessage,
-      masterMessage,
+      playerMessage: commitResult.userMessage,
+      masterMessage: commitResult.assistantMessage,
       gameState,
       turn: currentTurn,
       campaignId,
