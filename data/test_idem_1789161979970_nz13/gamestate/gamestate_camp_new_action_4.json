@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_new_action_4",
+  "turn": 2,
+  "foundation": {
+    "id": "found_1789161980038",
+    "title": "Campanha Ações Repetidas",
+    "genre": "",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "",
+    "createdAt": 1789161980038,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": "Último turno (2): Atacar o boneco de madeira"
+  },
+  "player": {
+    "id": "char_player_1789161980038",
+    "name": "",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1789161980038",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1789161980044
+}

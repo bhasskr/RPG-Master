@@ -61,6 +61,13 @@ export function computePayloadFingerprint(payload: unknown): string {
   return crypto.createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
+export class IdempotencyPersistenceError extends Error {
+  constructor(message: string, public cause?: unknown) {
+    super(message);
+    this.name = 'IdempotencyPersistenceError';
+  }
+}
+
 export class IdempotencyManager {
   private inMemoryCache: Map<string, IdempotencyRecord> = new Map();
   private inFlightRequests: Map<string, InFlightEntry> = new Map();
@@ -118,21 +125,34 @@ export class IdempotencyManager {
     return null;
   }
 
+  /**
+   * Persiste o registro de idempotência garantindo a sequência estrita:
+   * construir registro -> escrever arquivo temporário -> rename bem-sucedido -> atualizar cache.
+   * Se writeFile ou rename falhar, remove o temporário, garante que o cache não é alterado e propaga a falha.
+   */
   public async saveRecord(record: IdempotencyRecord): Promise<void> {
-    this.inMemoryCache.set(record.compositeKey, record);
-
     const filePath = this.getFilePath(record.compositeKey);
     const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
     try {
       await fs.promises.writeFile(tempPath, JSON.stringify(record, null, 2), 'utf-8');
       await fs.promises.rename(tempPath, filePath);
+      // O cache só é atualizado APÓS a confirmação de escrita durável no disco
+      this.inMemoryCache.set(record.compositeKey, record);
     } catch (err) {
+      // Limpeza segura do arquivo temporário se criado
       try {
         await fs.promises.unlink(tempPath);
       } catch {
-        // ignore
+        // Arquivo temporário pode não ter sido criado se writeFile falhou
       }
-      console.error(`[IdempotencyManager] Falha ao persistir registro em disco (${record.compositeKey}):`, err);
+      // Garante que o registro NÃO fica disponível no cache em memória
+      this.inMemoryCache.delete(record.compositeKey);
+
+      throw new IdempotencyPersistenceError(
+        `Falha ao persistir registro de idempotência em disco para chave ${record.compositeKey}: ${(err as Error)?.message || err}`,
+        err
+      );
     }
   }
 
@@ -216,6 +236,8 @@ export class IdempotencyManager {
       resolvePromise = resolve;
       rejectPromise = reject;
     });
+    // Evita UnhandledPromiseRejection se a requisição principal falhar sem requisições concorrentes aguardando
+    inFlightPromise.catch(() => {});
 
     this.inFlightRequests.set(compositeKey, {
       promise: inFlightPromise,

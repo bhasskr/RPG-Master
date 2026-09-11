@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_restart_9",
+  "turn": 1,
+  "foundation": {
+    "id": "found_1789161980152",
+    "title": "Campanha Restart Test",
+    "genre": "",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "",
+    "createdAt": 1789161980152,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": "Último turno (1): Investigo as marcas no chão"
+  },
+  "player": {
+    "id": "char_player_1789161980152",
+    "name": "",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1789161980152",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1789161980156
+}

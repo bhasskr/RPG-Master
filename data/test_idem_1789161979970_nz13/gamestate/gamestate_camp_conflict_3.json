@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_conflict_3",
+  "turn": 1,
+  "foundation": {
+    "id": "found_1789161980033",
+    "title": "Campanha Conflito",
+    "genre": "",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "",
+    "createdAt": 1789161980033,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": "Último turno (1): Abro o portal da esquerda"
+  },
+  "player": {
+    "id": "char_player_1789161980033",
+    "name": "",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1789161980033",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1789161980037
+}

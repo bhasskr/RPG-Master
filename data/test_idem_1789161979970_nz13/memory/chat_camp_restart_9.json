@@ -1,0 +1,31 @@
+[
+  {
+    "id": "msg_1789161980152_3q9wl",
+    "role": "assistant",
+    "content": "Abertura persistida.",
+    "timestamp": 1789161980152,
+    "turn": 0
+  },
+  {
+    "id": "msg_1789161980154_bk2he",
+    "role": "user",
+    "content": "Investigo as marcas no chão",
+    "timestamp": 1789161980154,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1789161980155_v6wpk",
+    "role": "assistant",
+    "content": "Narrador responde a: \"Investigo as marcas no chão\" (Chamada #9)",
+    "timestamp": 1789161980155,
+    "turn": 1,
+    "metadata": {
+      "location": "",
+      "diceRolls": [],
+      "executedTools": []
+    }
+  }
+]

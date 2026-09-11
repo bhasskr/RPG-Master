@@ -4,7 +4,7 @@ import { GameEngine } from '../server/engine/gameEngine';
 import { GameStateManager } from '../server/engine/gameState/gameStateManager';
 import { MemoryManager } from '../server/engine/memory/memoryManager';
 import { FilePersistentMemoryStore } from '../server/engine/memory/filePersistentStore';
-import { IdempotencyManager, withIdempotency, computePayloadFingerprint } from '../server/engine/idempotency/idempotencyService';
+import { IdempotencyManager, withIdempotency, computePayloadFingerprint, IdempotencyPersistenceError } from '../server/engine/idempotency/idempotencyService';
 import { fetchWithRetry, generateIdempotencyKey } from '../src/services/api';
 
 async function runAllIdempotencyTests() {
@@ -755,6 +755,170 @@ async function runAllIdempotencyTests() {
     passed++;
   } catch (err: any) {
     console.error('❌ Cenário 9 FALHOU:', err.message);
+    failed++;
+  }
+
+  // =========================================================================
+  // CENÁRIO 10A: Falha controlada de writeFile na persistência
+  // =========================================================================
+  console.log('\n--- CENÁRIO 10A: Falha controlada de writeFile na persistência ---');
+  try {
+    const campaignId = 'camp_io_fail_write';
+    const testWriteKey = 'key_fail_write_10a';
+    const isolationDir = path.join(testBaseDir, 'idem_io_write');
+    fs.mkdirSync(isolationDir, { recursive: true });
+    const isolatedManager = new IdempotencyManager(isolationDir);
+
+    const originalWriteFile = fs.promises.writeFile;
+    let writeInduced = false;
+
+    fs.promises.writeFile = async (file: any, data: any, options: any) => {
+      if (typeof file === 'string' && file.includes('idem_io_write')) {
+        writeInduced = true;
+        throw new Error('EACCES: permission denied simulated on writeFile');
+      }
+      return originalWriteFile.call(fs.promises, file, data, options);
+    };
+
+    let caughtError: any = null;
+    try {
+      await isolatedManager.process({
+        route: '/api/message',
+        scope: campaignId,
+        key: testWriteKey,
+        payload: { campaignId, message: 'Tentativa com falha em writeFile' },
+        execute: async () => {
+          return { statusCode: 200, body: { success: true, data: { action: 'done' } } };
+        },
+      });
+    } catch (err) {
+      caughtError = err;
+    } finally {
+      fs.promises.writeFile = originalWriteFile;
+    }
+
+    if (!writeInduced) {
+      throw new Error('A falha de writeFile não foi induzida no caminho esperado.');
+    }
+
+    // 1. O erro de persistência é observável pelo chamador
+    if (!caughtError) {
+      throw new Error('A falha de persistência foi engolida silenciosamente!');
+    }
+    if (!(caughtError instanceof IdempotencyPersistenceError)) {
+      throw new Error(`Erro retornado não é IdempotencyPersistenceError: ${caughtError?.message || caughtError}`);
+    }
+
+    // 2. O registro não ficou disponível no cache em memória como concluído
+    const compositeKey = isolatedManager.computeCompositeKey('/api/message', campaignId, testWriteKey);
+    const cachedRecord = await isolatedManager.getRecord(compositeKey);
+    if (cachedRecord !== null) {
+      throw new Error('O registro ficou indevidamente disponível no cache após falha de persistência!');
+    }
+
+    // 3. Uma nova instância do manager não encontra o registro no disco
+    const freshManager = new IdempotencyManager(isolationDir);
+    const diskRecord = await freshManager.getRecord(compositeKey);
+    if (diskRecord !== null) {
+      throw new Error('Nova instância encontrou registro no disco após falha de gravação!');
+    }
+
+    // 4. Não existe arquivo final parcial ou corrompido, e arquivos temporários não restaram
+    const filesInDir = fs.readdirSync(isolationDir);
+    const relatedFiles = filesInDir.filter((f) => f.includes(testWriteKey));
+    if (relatedFiles.length > 0) {
+      throw new Error(`Arquivos residuais ou temporários encontrados no diretório: ${JSON.stringify(relatedFiles)}`);
+    }
+
+    console.log('✅ Cenário 10A PASSOU: Falha de writeFile propagou erro, cache permaneceu limpo e sem arquivos corrompidos.');
+    passed++;
+  } catch (err: any) {
+    console.error('❌ Cenário 10A FALHOU:', err.message);
+    failed++;
+  }
+
+  // =========================================================================
+  // CENÁRIO 10B: Falha controlada de rename na persistência (limpeza de temporário)
+  // =========================================================================
+  console.log('\n--- CENÁRIO 10B: Falha controlada de rename na persistência ---');
+  try {
+    const campaignId = 'camp_io_fail_rename';
+    const testRenameKey = 'key_fail_rename_10b';
+    const isolationDir = path.join(testBaseDir, 'idem_io_rename');
+    fs.mkdirSync(isolationDir, { recursive: true });
+    const isolatedManager = new IdempotencyManager(isolationDir);
+
+    const originalRename = fs.promises.rename;
+    let renameInduced = false;
+
+    fs.promises.rename = async (oldPath: any, newPath: any) => {
+      if (typeof oldPath === 'string' && oldPath.includes('idem_io_rename')) {
+        renameInduced = true;
+        throw new Error('EXDEV: cross-device link simulated on rename');
+      }
+      return originalRename.call(fs.promises, oldPath, newPath);
+    };
+
+    let caughtError: any = null;
+    try {
+      await isolatedManager.process({
+        route: '/api/message',
+        scope: campaignId,
+        key: testRenameKey,
+        payload: { campaignId, message: 'Tentativa com falha em rename' },
+        execute: async () => {
+          return { statusCode: 200, body: { success: true, data: { action: 'rename_done' } } };
+        },
+      });
+    } catch (err) {
+      caughtError = err;
+    } finally {
+      fs.promises.rename = originalRename;
+    }
+
+    if (!renameInduced) {
+      throw new Error('A falha de rename não foi induzida no caminho esperado.');
+    }
+
+    // 1. O erro de persistência é observável pelo chamador
+    if (!caughtError) {
+      throw new Error('A falha de rename foi engolida silenciosamente!');
+    }
+    if (!(caughtError instanceof IdempotencyPersistenceError)) {
+      throw new Error(`Erro retornado não é IdempotencyPersistenceError: ${caughtError?.message || caughtError}`);
+    }
+
+    // 2. O registro não ficou disponível no cache em memória como concluído
+    const compositeKey = isolatedManager.computeCompositeKey('/api/message', campaignId, testRenameKey);
+    const cachedRecord = await isolatedManager.getRecord(compositeKey);
+    if (cachedRecord !== null) {
+      throw new Error('O registro ficou indevidamente disponível no cache após falha de rename!');
+    }
+
+    // 3. Uma nova instância do manager não encontra o registro no disco
+    const freshManager = new IdempotencyManager(isolationDir);
+    const diskRecord = await freshManager.getRecord(compositeKey);
+    if (diskRecord !== null) {
+      throw new Error('Nova instância encontrou registro no disco após falha de rename!');
+    }
+
+    // 4. Validação crucial: o arquivo temporário gerado pelo writeFile foi removido pelo unlink no bloco catch
+    const filesInDir = fs.readdirSync(isolationDir);
+    const tmpFiles = filesInDir.filter((f) => f.includes('.tmp.'));
+    if (tmpFiles.length > 0) {
+      throw new Error(`Arquivo temporário NÃO foi removido após falha de rename: ${JSON.stringify(tmpFiles)}`);
+    }
+
+    // 5. Nenhum arquivo final foi gerado
+    const finalFiles = filesInDir.filter((f) => f.endsWith('.json') && f.includes(testRenameKey));
+    if (finalFiles.length > 0) {
+      throw new Error(`Arquivo final foi criado indevidamente: ${JSON.stringify(finalFiles)}`);
+    }
+
+    console.log('✅ Cenário 10B PASSOU: Falha de rename propagou erro, removeu arquivo temporário e manteve cache/disco consistentes.');
+    passed++;
+  } catch (err: any) {
+    console.error('❌ Cenário 10B FALHOU:', err.message);
     failed++;
   }
 

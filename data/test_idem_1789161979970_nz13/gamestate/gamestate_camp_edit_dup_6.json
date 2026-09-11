@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_edit_dup_6",
+  "turn": 0,
+  "foundation": {
+    "id": "found_1789161980049",
+    "title": "Campanha Edit Dup",
+    "genre": "",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "",
+    "createdAt": 1789161980049,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": ""
+  },
+  "player": {
+    "id": "char_player_1789161980049",
+    "name": "",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1789161980049",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1789161980049
+}

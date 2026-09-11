@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_flight_1",
+  "turn": 1,
+  "foundation": {
+    "id": "found_1789161979971",
+    "title": "Campanha Concorrente",
+    "genre": "",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "",
+    "createdAt": 1789161979971,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": "Último turno (1): Avanço para a torre"
+  },
+  "player": {
+    "id": "char_player_1789161979971",
+    "name": "",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1789161979971",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1789161980027
+}

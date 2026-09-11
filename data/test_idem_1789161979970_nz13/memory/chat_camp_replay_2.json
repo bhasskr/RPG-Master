@@ -1,0 +1,31 @@
+[
+  {
+    "id": "msg_1789161980028_kx2gs",
+    "role": "assistant",
+    "content": "Início da aventura.",
+    "timestamp": 1789161980028,
+    "turn": 0
+  },
+  {
+    "id": "msg_1789161980030_75ahv",
+    "role": "user",
+    "content": "Examino os baús antigos",
+    "timestamp": 1789161980030,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1789161980032_83fjp",
+    "role": "assistant",
+    "content": "Narrador responde a: \"Examino os baús antigos\" (Chamada #2)",
+    "timestamp": 1789161980032,
+    "turn": 1,
+    "metadata": {
+      "location": "",
+      "diceRolls": [],
+      "executedTools": []
+    }
+  }
+]
