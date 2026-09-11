@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705675389_1yz7o",
+    "role": "user",
+    "content": "camp_integration_1787705649743",
+    "timestamp": 1787705675389,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705682271_vr6dc",
+    "role": "assistant",
+    "content": "*O ar está fresco e o cheiro de madeira úmida e grama cortada permeia o ambiente. Você se encontra nos arredores da **Vila de Carvalho**, um pequeno assentamento que parece ter sido fundado sob a sombra de árvores ancestrais. O caminho à sua frente bifurca-se: uma trilha segue em direção ao centro da vila, onde o movimento parece calmo e bucólico, enquanto a outra se perde na densa floresta que rodeia a região.*\n\n*O silêncio é interrompido apenas pelo canto de pássaros distantes e o ranger suave dos galhos ao vento. Você sente que a jornada que começou agora está apenas tomando forma.*\n\nO que você deseja fazer a seguir?",
+    "timestamp": 1787705682271,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

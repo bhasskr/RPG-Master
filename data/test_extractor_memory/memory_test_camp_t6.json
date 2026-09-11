@@ -1,0 +1,70 @@
+{
+  "campaign": {
+    "campaignId": "test_camp_t6",
+    "name": "Campanha T6",
+    "createdAt": 1787710508183,
+    "currentDate": "",
+    "currentLocation": ""
+  },
+  "npcs": {
+    "npc_1787710508183_722m": {
+      "id": "npc_1787710508183_722m",
+      "name": "Lucas",
+      "status": "alive",
+      "location": "Praça",
+      "faction": "",
+      "personalityNotes": "",
+      "goals": [],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    },
+    "npc_1787710508184_zsd0": {
+      "id": "npc_1787710508184_zsd0",
+      "name": "Marta",
+      "status": "alive",
+      "location": "Templo",
+      "faction": "",
+      "personalityNotes": "",
+      "goals": [],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    }
+  },
+  "events": [
+    {
+      "id": "evt_1787710508253_vy0n",
+      "timestamp": 1787710508253,
+      "location": "Praça",
+      "participants": [
+        "player",
+        "Lucas"
+      ],
+      "description": "Descoberta de segredo: o jogador roubou o amuleto sagrado...",
+      "consequences": [
+        "Informação adicionada ao registro do jogador"
+      ]
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "know_1787710508254_k9ve",
+      "fact": "o jogador roubou o amuleto sagrado",
+      "truthStatus": "true",
+      "knownBy": [
+        "player",
+        "Lucas"
+      ],
+      "suspectedBy": [],
+      "source": "Descoberta na cena em Praça",
+      "reliability": 10,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    }
+  ],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787710508254
+}

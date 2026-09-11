@@ -1,0 +1,6 @@
+{
+  "name": "Sandbox RPG Engine",
+  "description": "Motor e interface privada para jogar RPG narrativo com o Gemini como Mestre de RPG.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

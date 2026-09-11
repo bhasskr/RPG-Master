@@ -1,0 +1,16 @@
+{
+  "campaign": {
+    "campaignId": "camp_1787703223834_qtndx",
+    "name": "",
+    "createdAt": 1787703223839,
+    "currentDate": "",
+    "currentLocation": ""
+  },
+  "npcs": {},
+  "events": [],
+  "knowledge": [],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787703223839
+}

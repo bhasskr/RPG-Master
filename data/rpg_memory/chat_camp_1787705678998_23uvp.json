@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705678998_tvtd3",
+    "role": "user",
+    "content": "camp_integration_1787705678984",
+    "timestamp": 1787705678998,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705685454_va2u4",
+    "role": "assistant",
+    "content": "*O sol escaldante do deserto parece recuar um pouco ao se aproximar da borda do Oásis de Eldoria. O ar torna-se subitamente mais fresco, carregado com o aroma úmido de folhagens e o som suave de água corrente que rompe o silêncio vasto das dunas. Palmeiras altas projetam sombras longas e acolhedoras sobre o solo arenoso que, aqui, ganha tons de musgo e terra fértil.*\n\n*Você está no Oásis de Eldoria. O local parece estranhamente calmo, quase deserto, embora vestígios recentes de presença humana — pegadas frescas e uma fogueira ainda morna — sugiram que você não está tão sozinho quanto parece.*\n\n*Onde você deseja investigar primeiro ou quem você procura nesta parada?*",
+    "timestamp": 1787705685454,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

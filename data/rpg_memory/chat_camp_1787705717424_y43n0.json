@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705717425_hdan6",
+    "role": "user",
+    "content": "camp_integ_1787705696592",
+    "timestamp": 1787705717425,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705726049_brbxt",
+    "role": "assistant",
+    "content": "Parece que houve um pequeno desencontro nas informações. O sistema registrou o identificador da campanha, mas não retornou a localização atual ou o status do seu personagem.\n\nPara que eu possa retomar a narração de forma correta e imersiva, você poderia me situar?\n\n1. **Onde o seu personagem está agora?** (Ex: *Na Taverna do Dragão Adormecido*, *No meio da Floresta Sombria*, etc.)\n2. **Qual é o objetivo imediato ou a situação atual?** (Ex: *Estou investigando um sumiço*, *Acabei de chegar à cidade*, *Estou em combate*)\n\nAssim que você me der esse contexto, daremos continuidade à aventura imediatamente.",
+    "timestamp": 1787705726049,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

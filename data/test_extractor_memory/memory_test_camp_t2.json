@@ -1,0 +1,43 @@
+{
+  "campaign": {
+    "campaignId": "test_camp_t2",
+    "name": "Campanha T2",
+    "createdAt": 1787710507688,
+    "currentDate": "",
+    "currentLocation": ""
+  },
+  "npcs": {
+    "npc_1787710507688_v4ol": {
+      "id": "npc_1787710507688_v4ol",
+      "name": "Capitão Valério",
+      "status": "dead",
+      "location": "Muralhas",
+      "faction": "",
+      "personalityNotes": "",
+      "goals": [],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    }
+  },
+  "events": [
+    {
+      "id": "evt_1787710507771_o7da",
+      "timestamp": 1787710507771,
+      "location": "Muralhas",
+      "participants": [
+        "player",
+        "Capitão Valério"
+      ],
+      "description": "Morte de Capitão Valério em Muralhas.",
+      "consequences": [
+        "Capitão Valério não está mais vivo"
+      ]
+    }
+  ],
+  "knowledge": [],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787710507851
+}

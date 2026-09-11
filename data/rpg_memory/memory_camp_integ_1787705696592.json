@@ -1,0 +1,65 @@
+{
+  "campaign": {
+    "campaignId": "camp_integ_1787705696592",
+    "name": "Campanha de Teste de Integração",
+    "createdAt": 1787705696602,
+    "currentDate": "15 de Outono",
+    "currentLocation": "Mercado Velho"
+  },
+  "npcs": {
+    "npc_1787705696603_7h7l": {
+      "id": "npc_1787705696603_7h7l",
+      "name": "João",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Padeiro Local",
+      "personalityNotes": "Trabalhador e desconfiado.",
+      "goals": [
+        "Manter sua padaria"
+      ],
+      "secrets": [],
+      "inventory": [
+        "Pão Fresco"
+      ],
+      "relationships": {}
+    },
+    "npc_1787705696603_rb9u": {
+      "id": "npc_1787705696603_rb9u",
+      "name": "Marta",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Alquimista Clandestina",
+      "personalityNotes": "Misteriosa e vigilante.",
+      "goals": [
+        "Ocultar os segredos do Culto"
+      ],
+      "secrets": [
+        "Conhece o esconderijo secreto do Culto nas catacumbas sob a igreja"
+      ],
+      "inventory": [
+        "Frasco de Poção"
+      ],
+      "relationships": {}
+    }
+  },
+  "events": [],
+  "knowledge": [
+    {
+      "id": "know_1787705696604_mh1w",
+      "fact": "O Culto da Serpente se reúne nas catacumbas secretas sob a igreja abandonada à meia-noite.",
+      "truthStatus": "true",
+      "knownBy": [
+        "Marta"
+      ],
+      "suspectedBy": [],
+      "source": "Observação direta de Marta",
+      "reliability": 10,
+      "isWorldTruth": true,
+      "isPublicKnowledge": false
+    }
+  ],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787705696604
+}

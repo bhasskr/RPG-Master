@@ -1,0 +1,194 @@
+@import "tailwindcss";
+@theme {
+  --color-background: #0c0c0e;
+  --color-surface: #121215;
+  --color-surface-subtle: #18181c;
+  --color-surface-elevated: #202024;
+  --color-surface-hover: #29292e;
+  --color-surface-active: #36363d;
+
+  --color-border-subtle: #26262b;
+  --color-border-default: #36363d;
+  --color-border-strong: #52525c;
+
+  --color-text-primary: #f4f4f5; /* zinc-100 */
+  --color-text-secondary: #a8a8b2; /* zinc-350 */
+  --color-text-muted: #8e8e96; /* zinc-450 (passes WCAG AA 4.5:1 floor) */
+  --color-text-disabled: #63636c; /* zinc-600 readable disabled floor */
+
+  --color-focus: #d4d4d8; /* zinc-300 accessible focus ring (>9:1 contrast) */
+
+  --color-favorite: #f59e0b; /* amber-500 dedicated bookmark token */
+  --color-favorite-subtle: rgba(245, 158, 11, 0.12);
+
+  --color-accent: #34d399; /* emerald-400 */
+  --color-accent-hover: #10b981; /* emerald-500 */
+  --color-accent-active: #059669; /* emerald-600 */
+  --color-accent-subtle: rgba(16, 185, 129, 0.1);
+
+  --color-success: #34d399;
+  --color-success-subtle: rgba(16, 185, 129, 0.1);
+  
+  --color-warning: #fbbf24;
+  --color-warning-subtle: rgba(245, 158, 11, 0.1);
+  
+  --color-danger: #f87171;
+  --color-danger-hover: #ef4444;
+  --color-danger-subtle: rgba(239, 68, 68, 0.1);
+  
+  --color-info: #60a5fa;
+  --color-info-subtle: rgba(59, 130, 246, 0.1);
+}
+
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+}
+
+/* Custom scrollbar for immersive reading */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-hover);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-active);
+}
+
+@keyframes slideLeft {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-left {
+  animation: slideLeft 0.2s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-slide-left,
+  .animate-fade-in {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@layer components {
+  .typo-display {
+    font-size: 1.25rem;
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  @media (min-width: 640px) {
+    .typo-display {
+      font-size: 1.5rem;
+    }
+  }
+
+  .typo-heading {
+    font-size: 1rem;
+    line-height: 1.375;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 640px) {
+    .typo-heading {
+      font-size: 1.125rem;
+    }
+  }
+
+  .typo-section-heading {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    font-weight: 600;
+  }
+  @media (min-width: 640px) {
+    .typo-section-heading {
+      font-size: 0.875rem;
+    }
+  }
+
+  .typo-body {
+    font-size: 0.875rem;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+
+  .typo-narrative {
+    font-weight: 400;
+    line-height: 1.65;
+  }
+
+  .typo-secondary {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  .typo-caption {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
+  .radius-small { border-radius: 4px; }
+  .radius-medium { border-radius: 8px; }
+  .radius-large { border-radius: 12px; }
+  .radius-l-medium { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+  .radius-r-medium { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+  .radius-tr-small { border-top-right-radius: 4px; }
+  .radius-none { border-radius: 0; }
+  .radius-full { border-radius: 9999px; }
+
+  .elevation-none { box-shadow: none; }
+  .elevation-low { box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.4); }
+  .elevation-medium { box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5); }
+}

@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_1788487200647_tnlsd",
+  "turn": 0,
+  "foundation": {
+    "id": "found_1788487200647",
+    "title": "O Mistério de Brasen",
+    "genre": "",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "Magia é rara e perigosa.",
+    "startingLocation": "Mercado Velho",
+    "createdAt": 1788487200647,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "Mercado Velho",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": ""
+  },
+  "player": {
+    "id": "char_player_1788487200647",
+    "name": "",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1788487200647",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1788487200647
+}

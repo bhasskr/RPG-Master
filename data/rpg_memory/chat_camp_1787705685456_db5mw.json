@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705685456_s9opw",
+    "role": "user",
+    "content": "camp_integration_1787705678984",
+    "timestamp": 1787705685456,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705692409_qa3q5",
+    "role": "assistant",
+    "content": "Entendido. Como Mestre, estou processando sua ação: \"camp_integration_1787705678984\".\n\nComo você gostaria de prosseguir?",
+    "timestamp": 1787705692409,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_manual_confirmed_1788540377366",
+  "turn": 0,
+  "foundation": {
+    "id": "found_1788540377366",
+    "title": "A Lança do Destino",
+    "genre": "Dark Fantasy",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "Ruínas Esquecidas",
+    "createdAt": 1788540377366,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "Ruínas Esquecidas",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": ""
+  },
+  "player": {
+    "id": "char_player_1788540377366",
+    "name": "Gareth",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1788540377366",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1788540377366
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716499849_six2d",
+    "role": "user",
+    "content": "Vou para a Caverna e pego a Espada Mágica.",
+    "timestamp": 1787716499849,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716519191_5r6f0",
+    "role": "assistant",
+    "content": "*Você caminha pela trilha sinuosa até a entrada escura e úmida da Caverna. O ar frio sopra de dentro, carregando um cheiro de terra molhada e pedra antiga. Seus passos ecoam contra as paredes rochosas conforme você adentra as entranhas da terra.*\n\n*Seus olhos se acostumam à penumbra, mas, por mais que você procure, a caverna parece vazia. Não há sinal da espada mágica que você esperava encontrar aqui. Apenas silêncio e o gotejar constante de água em alguma poça invisível ao longe.*\n\nO que você faz?",
+    "timestamp": 1787716519191,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

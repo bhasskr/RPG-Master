@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787758132812_yad7a",
+    "role": "user",
+    "content": "Procuro a taverna mais próxima para obter informações.",
+    "timestamp": 1787758132812,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787758473530_r917n",
+    "role": "assistant",
+    "content": "*O sol começa a baixar no horizonte, tingindo o céu de tons alaranjados e púrpuras enquanto você caminha pelas ruas de pedra desgastada da cidade. O burburinho de mercadores encerrando o dia dá lugar a um clima mais boêmio. Seguindo o som de risadas abafadas e o aroma característico de hidromel e carne assada, você encontra a \"Taverna do Javali\", um estabelecimento de fachada rústica com janelas de madeira batida que emitem uma luz quente e convidativa.*\n\n*Ao empurrar a pesada porta de carvalho, o som de uma música de cordas mal afinada e o cheiro intenso de fumaça e suor o atingem. O local está movimentado, com trabalhadores locais e alguns viajantes espalhados pelas mesas de madeira bruta. Atrás do balcão, um homem corpulento de avental sujo limpa um caneco com um pano encardido, lançando olhares atentos a quem entra.*\n\nO que você deseja fazer agora?",
+    "timestamp": 1787758473530,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

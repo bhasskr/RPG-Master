@@ -1,0 +1,16 @@
+{
+  "campaign": {
+    "campaignId": "test_camp_t4",
+    "name": "Campanha T4",
+    "createdAt": 1787710507937,
+    "currentDate": "",
+    "currentLocation": ""
+  },
+  "npcs": {},
+  "events": [],
+  "knowledge": [],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787710508106
+}

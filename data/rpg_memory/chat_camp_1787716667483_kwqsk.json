@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716667483_q3567",
+    "role": "user",
+    "content": "Falo com Marta sobre o que ela viu.",
+    "timestamp": 1787716667483,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716673132_w7zuv",
+    "role": "assistant",
+    "content": "Sinto muito, mas não consegui localizar ninguém chamado \"Marta\" por aqui. Parece que não há nenhum registro de uma personagem com esse nome no local atual ou nas proximidades.\n\nPoderia me dizer onde você está ou quem exatamente você está procurando? Se você estiver tentando falar com alguém específico, talvez o nome tenha sido registrado de outra forma, ou talvez essa pessoa ainda não tenha cruzado o seu caminho nesta jornada.",
+    "timestamp": 1787716673132,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

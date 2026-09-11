@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716683365_phm48",
+    "role": "user",
+    "content": "Falo com João sobre os transportes do Duque.",
+    "timestamp": 1787716683365,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716689053_r3xdz",
+    "role": "assistant",
+    "content": "Desculpe, mas não encontrei nenhum registro de um personagem chamado \"João\" em nosso mundo atual. \n\nVocê poderia me dizer onde você está ou quem exatamente você está procurando? Se houver outro nome ou se você quiser explorar um local específico para encontrar alguém com quem conversar, basta me avisar!",
+    "timestamp": 1787716689053,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

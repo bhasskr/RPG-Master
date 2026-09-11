@@ -1,0 +1,47 @@
+{
+  "campaignId": "test_camp_B_1788540423347",
+  "turn": 0,
+  "foundation": {
+    "id": "found_1788540423347",
+    "title": "Sombras de Neon 2099",
+    "genre": "Cyberpunk",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "Setor 4 do Distrito Baixo",
+    "createdAt": 1788540423347,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "Setor 4 do Distrito Baixo",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": ""
+  },
+  "player": {
+    "id": "char_player_1788540423347",
+    "name": "Kaelen Cypher",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1788540423347",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1788540423347
+}

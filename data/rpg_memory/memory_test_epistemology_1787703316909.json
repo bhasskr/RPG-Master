@@ -1,0 +1,94 @@
+{
+  "campaign": {
+    "campaignId": "test_epistemology_1787703316909",
+    "name": "A Queda de Brasen - Teste Epistemológico",
+    "createdAt": 1787703316917,
+    "currentDate": "15 de Outono",
+    "currentLocation": "Mercado Velho"
+  },
+  "npcs": {
+    "npc_joao": {
+      "id": "npc_joao",
+      "name": "João",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Comerciantes",
+      "personalityNotes": "Um homem simples que vende tecidos e cuida de seus próprios negócios.",
+      "goals": [
+        "Vender seus tecidos"
+      ],
+      "secrets": [],
+      "inventory": [
+        "Tecidos"
+      ],
+      "relationships": {}
+    },
+    "npc_marta": {
+      "id": "npc_marta",
+      "name": "Marta",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Guilda dos Artesãos",
+      "personalityNotes": "Observadora atenta e discreta.",
+      "goals": [
+        "Descobrir a verdade sobre Estêvão"
+      ],
+      "secrets": [
+        "Sabe do esquema nos fundos"
+      ],
+      "inventory": [
+        "Adaga"
+      ],
+      "relationships": {}
+    }
+  },
+  "events": [],
+  "knowledge": [
+    {
+      "id": "know_1787703316920_fkq3",
+      "fact": "Estêvão opera um esquema secreto de falsificação nos fundos do Mercado Velho.",
+      "truthStatus": "true",
+      "knownBy": [
+        "Marta"
+      ],
+      "suspectedBy": [],
+      "source": "Investigação pessoal de Marta",
+      "reliability": 9,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    },
+    {
+      "id": "know_1787703316923_1ccj",
+      "fact": "João desconfia que guardas do porto estão aceitando propina para liberar caixotes sem vistoria.",
+      "truthStatus": "suspicion",
+      "knownBy": [],
+      "suspectedBy": [
+        "João"
+      ],
+      "source": "Observação casual de João no porto",
+      "reliability": 4,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    },
+    {
+      "id": "know_1787703316924_oejp",
+      "fact": "João relatou ao jogador: \"João desconfia que guardas do porto estão aceitando propina para liberar caixotes sem vistoria.\"",
+      "truthStatus": "suspicion",
+      "knownBy": [
+        "Jogador",
+        "João"
+      ],
+      "suspectedBy": [
+        "João"
+      ],
+      "source": "Relato verbal de João ao jogador",
+      "reliability": 4,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    }
+  ],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787703316924
+}

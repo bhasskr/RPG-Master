@@ -1,0 +1,66 @@
+{
+  "campaign": {
+    "campaignId": "camp_integration_1787705678984",
+    "name": "Campanha de Integração",
+    "createdAt": 1787705678989,
+    "currentDate": "15 de Outono",
+    "currentLocation": "Mercado Velho"
+  },
+  "npcs": {
+    "npc_1787705678991_gsho": {
+      "id": "npc_1787705678991_gsho",
+      "name": "João",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Padeiro Local",
+      "personalityNotes": "Trabalhador, reservado.",
+      "goals": [
+        "Manter a padaria segura"
+      ],
+      "secrets": [],
+      "inventory": [
+        "Pão",
+        "Farinha"
+      ],
+      "relationships": {}
+    },
+    "npc_1787705678991_cbf3": {
+      "id": "npc_1787705678991_cbf3",
+      "name": "Marta",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Herborista",
+      "personalityNotes": "Misteriosa e atenta.",
+      "goals": [
+        "Guardar as fórmulas alquímicas"
+      ],
+      "secrets": [
+        "Sabe que o magistrado aceita suborno dos contrabandistas"
+      ],
+      "inventory": [
+        "Ervas Medicinais"
+      ],
+      "relationships": {}
+    }
+  },
+  "events": [],
+  "knowledge": [
+    {
+      "id": "know_1787705678992_57bw",
+      "fact": "O magistrado de Brasen recebe propina dos contrabandistas do porto à meia-noite.",
+      "truthStatus": "true",
+      "knownBy": [
+        "Marta"
+      ],
+      "suspectedBy": [],
+      "source": "Observação pessoal de Marta",
+      "reliability": 10,
+      "isWorldTruth": true,
+      "isPublicKnowledge": false
+    }
+  ],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787705678992
+}

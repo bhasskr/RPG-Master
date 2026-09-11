@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705655855_mkooj",
+    "role": "user",
+    "content": "camp_integration_1787705649743",
+    "timestamp": 1787705655855,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705662726_h1nng",
+    "role": "assistant",
+    "content": "*O eco de seus passos ressoa nas ruas de paralelepípedos de Brasen. A cidade, conhecida por suas brumas persistentes e pelo comércio de especiarias raras, parece despertar lentamente sob um céu acinzentado.*\n\n*Você se encontra na Praça Central. O movimento ainda é escasso, limitado a alguns mercadores preparando suas bancas e o som distante de uma forja trabalhando. A atmosfera é de uma calma tensa, típica de um lugar que guarda segredos entre suas vielas estreitas.*\n\n*Você está de volta. O que deseja fazer agora?*",
+    "timestamp": 1787705662726,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

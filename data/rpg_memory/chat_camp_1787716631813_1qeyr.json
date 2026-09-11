@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716631813_okfid",
+    "role": "user",
+    "content": "Falo com Marta sobre o que ela viu.",
+    "timestamp": 1787716631813,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716637722_b9hb4",
+    "role": "assistant",
+    "content": "*Você olha ao seu redor, tentando localizar Marta, mas percebe que não há ninguém com esse nome por perto ou registrado nas proximidades. O ambiente parece calmo, talvez um pouco silencioso demais para o que você esperava encontrar.*\n\n\"Marta?\" *Você pronuncia o nome, mas apenas o eco da sua própria voz responde.*\n\nComo deseja prosseguir? Você está procurando por alguém específico nesta área ou talvez tenha se confundido sobre onde ela estaria?",
+    "timestamp": 1787716637722,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

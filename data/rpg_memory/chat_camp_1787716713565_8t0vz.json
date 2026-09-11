@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716713565_0wx7s",
+    "role": "user",
+    "content": "Tento roubar o selo do prefeito escondido na taverna.",
+    "timestamp": 1787716713565,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716722369_o7otb",
+    "role": "assistant",
+    "content": "*Você entra na taverna, um ambiente rústico, mal iluminado e com o cheiro característico de cerveja barata e serragem no chão. O lugar está relativamente calmo, com poucos frequentadores espalhados pelas mesas.*\n\n*Você vasculha o ambiente discretamente, mas percebe que não há um \"Prefeito\" por aqui, e tampouco parece haver qualquer selo ou item de valor oficial guardado neste estabelecimento. A taverna parece ser apenas o que é: um lugar comum de descanso e bebida.*\n\nO que você deseja fazer agora? Deseja procurar informações sobre o paradeiro do prefeito ou do selo com alguém, ou talvez investigar outro local?",
+    "timestamp": 1787716722369,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

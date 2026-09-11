@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716730619_ael59",
+    "role": "user",
+    "content": "Vou para a Caverna e pego a Espada Mágica.",
+    "timestamp": 1787716730619,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716740762_ioy9v",
+    "role": "assistant",
+    "content": "*Você caminha pela trilha estreita que leva até a entrada da Caverna. O ar torna-se mais frio e úmido à medida que se aproxima da boca escura do local. O silêncio é absoluto, interrompido apenas pelo som dos seus próprios passos sobre as pedras soltas.*\n\n*Ao adentrar a caverna, seus olhos levam um momento para se ajustar à penumbra. Você tateia o ambiente, procurando pela tal \"Espada Mágica\", mas o que encontra são apenas paredes de rocha nua e poeira acumulada. Não há nenhum artefato, arma ou brilho arcano aqui. A caverna parece estar completamente vazia e abandonada há muito tempo.*\n\nVocê está no interior da caverna, sem sinal algum da espada que esperava encontrar. O que deseja fazer agora?",
+    "timestamp": 1787716740762,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

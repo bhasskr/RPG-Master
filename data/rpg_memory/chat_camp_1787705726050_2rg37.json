@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705726050_ak53v",
+    "role": "user",
+    "content": "camp_integ_1787705696592",
+    "timestamp": 1787705726050,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705734591_wd36f",
+    "role": "assistant",
+    "content": "Para prosseguirmos com a sua aventura, preciso identificar a campanha atual. Você mencionou o código `camp_integ_1787705696592`, mas ele não foi reconhecido como um comando de inicialização válido.\n\nComo você deseja começar?\n\n1. **Deseja criar uma nova campanha agora?** (Se sim, me diga o nome dela e o local inicial).\n2. **Houve um erro na identificação da campanha?** (Se você já tem uma campanha ativa e quer carregá-la, por favor, me dê o título dela ou verifique o código).\n\nEstou pronto para narrar assim que definirmos o ponto de partida!",
+    "timestamp": 1787705734591,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

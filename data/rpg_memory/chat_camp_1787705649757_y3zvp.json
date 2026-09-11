@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705649757_no7h0",
+    "role": "user",
+    "content": "camp_integration_1787705649743",
+    "timestamp": 1787705649757,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705655853_h5ree",
+    "role": "assistant",
+    "content": "*O eco do seu chamado parece ressoar por um momento antes de se dissipar no ar, como se o próprio tecido da realidade estivesse se ajustando à sua presença. Você se encontra em um estado de transição, onde o vazio começa a tomar forma e as memórias da sua jornada começam a se organizar.*\n\n*Parece que a conexão com os registros do mundo foi estabelecida. Por favor, descreva onde você está ou o que está acontecendo agora para que eu possa situar sua aventura e dar continuidade à narrativa.*",
+    "timestamp": 1787705655853,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

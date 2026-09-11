@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705668985_jsxzo",
+    "role": "user",
+    "content": "camp_integration_1787705649743",
+    "timestamp": 1787705668985,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705675389_1fs8v",
+    "role": "assistant",
+    "content": "A campanha foi inicializada com sucesso. \n\n*O ar ao seu redor ainda parece carregar o frescor de um começo, uma página em branco na história deste mundo. O ambiente ao seu redor aguarda por suas intenções, e o destino, por enquanto, é apenas uma sombra tênue no horizonte.*\n\nOnde você se encontra e qual é o seu primeiro movimento neste mundo?",
+    "timestamp": 1787705675389,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

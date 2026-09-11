@@ -1,0 +1,82 @@
+{
+  "campaign": {
+    "campaignId": "camp_1787699727485_hu7pp",
+    "name": "A Queda de Brasen",
+    "createdAt": 1787699733761,
+    "currentDate": "",
+    "currentLocation": ""
+  },
+  "npcs": {
+    "npc_1787699739405_hpbu": {
+      "id": "npc_1787699739405_hpbu",
+      "name": "Marta",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Comerciante",
+      "personalityNotes": "Comerciante local na cidade de Brasen.",
+      "goals": [
+        "Comerciar e manter seu negócio em Brasen"
+      ],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    },
+    "npc_1787699767751_cxjg": {
+      "id": "npc_1787699767751_cxjg",
+      "name": "Espião de Valdor",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Valdor",
+      "personalityNotes": "Discreto, encapuzado, cauteloso e intimidador.",
+      "goals": [
+        "Coletar informações secretas em Brasen"
+      ],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    }
+  },
+  "events": [
+    {
+      "id": "evt_1787699759992_6jb0",
+      "timestamp": 1787699759992,
+      "location": "Mercado Velho",
+      "participants": [
+        "Marta",
+        "Homem Encapuzado"
+      ],
+      "description": "Marta, uma comerciante, encontrou um homem encapuzado no Mercado Velho.",
+      "consequences": []
+    },
+    {
+      "id": "evt_1787699767754_6qa1",
+      "timestamp": 1787699767754,
+      "location": "Mercado Velho",
+      "participants": [
+        "Marta",
+        "Espião de Valdor"
+      ],
+      "description": "Marta descobre a verdadeira identidade do homem encapuzado no Mercado Velho: ele é um espião de Valdor.",
+      "consequences": [
+        "Marta agora detém um segredo perigoso envolvendo a soberania de Brasen e a ameaça de Valdor."
+      ]
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "know_1787699767754_k6h3",
+      "fact": "O homem encapuzado que abordou Marta no Mercado Velho é um espião a serviço de Valdor.",
+      "truthStatus": "true",
+      "knownBy": [
+        "Marta"
+      ],
+      "suspectedBy": [],
+      "source": "Revelação/Encontro no Mercado Velho",
+      "reliability": 10
+    }
+  ],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787699767754
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "msg_b_1",
+    "role": "user",
+    "content": "Eu conecto meu deck neural ao terminal de acesso.",
+    "timestamp": 1788540423354,
+    "turn": 1
+  },
+  {
+    "id": "msg_b_2",
+    "role": "assistant",
+    "content": "Linhas de código verde fluem rapidamente pela sua visão cibernética.",
+    "timestamp": 1788540423365,
+    "turn": 1
+  }
+]

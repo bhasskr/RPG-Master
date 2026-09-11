@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787698575309_aq9qm",
+    "role": "user",
+    "content": "Oi, Mestre.",
+    "timestamp": 1787698575309,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787698576808_1bjke",
+    "role": "assistant",
+    "content": "Olá! É um prazer conhecê-lo. Estou pronto para assumir o papel de Mestre e conduzir uma aventura memorável com você.\n\nComo esta é a nossa sessão zero, o palco está inteiramente livre para as suas escolhas. Para começarmos, você tem alguma preferência sobre como deseja proceder?\n\n*   **Você já tem um personagem e um cenário em mente?** Se sim, pode me descrever quem é você, onde está e qual é o tom da história (ex: alta fantasia, horror cósmico, cyberpunk, investigação, etc.).\n*   **Você gostaria que eu sugerisse alguns cenários ou temas para escolhermos juntos?**\n*   **Ou prefere que comecemos com algo totalmente improvisado, deixando a história surgir a partir de uma cena inicial que eu proponha?**\n\nEstou à disposição. Quando estiver pronto, basta me guiar pelo caminho que deseja seguir. O que você me diz?",
+    "timestamp": 1787698576808,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

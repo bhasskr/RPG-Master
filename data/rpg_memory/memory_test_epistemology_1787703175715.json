@@ -1,0 +1,55 @@
+{
+  "campaign": {
+    "campaignId": "test_epistemology_1787703175715",
+    "name": "",
+    "createdAt": 1787703175722,
+    "currentDate": "",
+    "currentLocation": ""
+  },
+  "npcs": {
+    "npc_joao": {
+      "id": "npc_joao",
+      "name": "João",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Comerciantes",
+      "personalityNotes": "Um homem simples que vende tecidos e cuida de seus próprios negócios.",
+      "goals": [],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    },
+    "npc_marta": {
+      "id": "npc_marta",
+      "name": "Marta",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Guilda dos Artesãos",
+      "personalityNotes": "Observadora atenta e discreta.",
+      "goals": [],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    }
+  },
+  "events": [],
+  "knowledge": [
+    {
+      "id": "know_1787703175724_mv6s",
+      "fact": "Estêvão opera um esquema secreto de falsificação nos fundos do Mercado Velho.",
+      "truthStatus": "true",
+      "knownBy": [
+        "Marta"
+      ],
+      "suspectedBy": [],
+      "source": "Investigação pessoal de Marta",
+      "reliability": 9,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    }
+  ],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787703175724
+}

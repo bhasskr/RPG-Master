@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705354333_56od2",
+    "role": "user",
+    "content": "fc_campaign_1787705354311",
+    "timestamp": 1787705354333,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705362879_q466s",
+    "role": "assistant",
+    "content": "*O ar está pesado, carregado com o cheiro de incenso e o murmúrio distante de uma cidade que parece não dormir. Você se encontra no coração de um vilarejo movimentado, o ponto de partida de sua jornada. Ao seu redor, a estrutura de madeira gasta das construções e o calçamento irregular das ruas contam histórias de um passado esquecido.*\n\n*Você está parado na praça central, onde o movimento de comerciantes e viajantes começa a diminuir conforme a luz do dia cede lugar ao crepúsculo. O silêncio momentâneo permite que você reflita sobre os passos que o trouxeram até aqui.*\n\nPara que possamos situar melhor sua jornada, onde exatamente você gostaria de começar suas investigações ou interações? Você está na praça central, mas pode seguir em direção à **Taverna do Javali**, explorar as bancas do **Mercado Velho** ou buscar informações em outro ponto de interesse.\n\nO que você deseja fazer agora?",
+    "timestamp": 1787705362879,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

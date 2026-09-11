@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716444696_e6vgv",
+    "role": "user",
+    "content": "Falo com Marta sobre o que ela viu.",
+    "timestamp": 1787716444696,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716457400_uc6gd",
+    "role": "assistant",
+    "content": "Sinto muito, mas parece que não encontrei nenhum registro de uma personagem chamada \"Marta\" neste mundo.\n\nPoderia me confirmar se este é o nome correto ou se ela se encontra em alguma localização específica? Se você estiver tentando encontrá-la, posso verificar os NPCs presentes na sua localização atual. Onde você está no momento?",
+    "timestamp": 1787716457400,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

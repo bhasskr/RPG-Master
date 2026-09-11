@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716745772_7zsif",
+    "role": "user",
+    "content": "Vou para a Caverna e pego a Espada Mágica.",
+    "timestamp": 1787716745772,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716754343_dgrlw",
+    "role": "assistant",
+    "content": "*Você caminha pela trilha sinuosa que leva até a entrada da Caverna. O ar torna-se mais frio e úmido à medida que se aproxima das rochas escuras que formam a boca da gruta.*\n\n*Ao adentrar o local, seus passos ecoam contra as paredes de pedra. Você vasculha os cantos, observa as fendas e revira o chão de terra batida, mas, para sua frustração, não encontra nada. A caverna está completamente vazia e silenciosa; não há sinal da espada mágica que você esperava encontrar aqui.*\n\nParece que o local está desprovido de qualquer item. O que você deseja fazer agora?",
+    "timestamp": 1787716754343,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

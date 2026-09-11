@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_1788488747970_qig2b",
+  "turn": 1,
+  "foundation": {
+    "id": "found_1788488747970",
+    "title": "A Cripta de Valthor",
+    "genre": "Fantasia Sombria",
+    "premise": "Um grupo de aventureiros explora uma tumba ancestral.",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "Entrada da Cripta",
+    "createdAt": 1788488747970,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "Entrada da Cripta",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": "Último turno (1): Tento forçar a pesada fechadura de ferro enferrujado da crip"
+  },
+  "player": {
+    "id": "char_player_1788488747970",
+    "name": "",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1788488747970",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1788488757879
+}

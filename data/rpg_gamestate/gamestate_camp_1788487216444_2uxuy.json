@@ -1,0 +1,47 @@
+{
+  "campaignId": "camp_1788487216444_2uxuy",
+  "turn": 0,
+  "foundation": {
+    "id": "found_1788487216444",
+    "title": "Campanha de Teste",
+    "genre": "",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "Fantasia Medieval",
+    "startingLocation": "Valfenda",
+    "createdAt": 1788487216444,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "Valfenda",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": ""
+  },
+  "player": {
+    "id": "char_player_1788487216444",
+    "name": "Jogador",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1788487216444",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1788487216444
+}

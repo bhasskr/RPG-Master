@@ -1,0 +1,92 @@
+[
+  {
+    "id": "msg_1787699727507_vonhn",
+    "role": "user",
+    "content": "Crie uma campanha chamada A Queda de Brasen.",
+    "timestamp": 1787699727507,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787699736616_theqs",
+    "role": "assistant",
+    "content": "Saudações! A campanha **A Queda de Brasen** está oficialmente iniciada.\n\nComo Mestre, estou pronto para conduzir esta jornada ao seu lado. Para começarmos a dar vida a este mundo e dar os primeiros passos na narrativa, me conte um pouco sobre o que você imagina:\n\n1. **Seu Personagem:** Qual é o nome, classe/ocupação, aparência ou traços marcantes do seu protagonista?\n2. **O Cenário e o Tom:** Que tipo de mundo é este (fantasia medieval, alta magia, fantasia sombria, baixo mistério, etc.) e onde estamos no início da história?\n3. **Ponto de Partida:** Você já tem em mente uma cena inicial (ex: em uma taverna movimentada, na praça central de Brasen, durante uma viagem, fugindo de algo), ou prefere que eu proponha o cenário inicial com base no seu personagem?\n\nSinta-se inteiramente à vontade para definir os detalhes que desejar! Assim que estiver pronto, daremos início à primeira cena.",
+    "timestamp": 1787699736616,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787699736617_b1how",
+    "role": "user",
+    "content": "Crie um NPC chamado Marta. Ela é uma comerciante de Brasen.",
+    "timestamp": 1787699736617,
+    "turn": 2,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787699747068_kgsto",
+    "role": "assistant",
+    "content": "A NPC **Marta**, comerciante de **Brasen**, foi registrada no mundo da campanha!\n\n---\n\n**Marta** está pronta para interagir no cenário. Para continuarmos montando o palco e dar início à primeira cena da história:\n\n1. **Seu Personagem:** Quem é você neste mundo? Qual o seu nome, classe/ocupação ou conceito inicial?\n2. **Cena Inicial:** Você gostaria de começar já na loja ou banca de Marta em Brasen, ou prefere iniciar em outro lugar da cidade?\n\nAssim que me disser, daremos início ao primeiro turno de aventura!",
+    "timestamp": 1787699747068,
+    "turn": 2,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787699747069_vb6f3",
+    "role": "user",
+    "content": "Marta agora está no Mercado Velho.",
+    "timestamp": 1787699747069,
+    "turn": 3,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787699755737_p56yb",
+    "role": "assistant",
+    "content": "A localização da NPC **Marta** foi atualizada para o **Mercado Velho** em Brasen!\n\n---\n\n*O Mercado Velho de Brasen é um local efervescente, repleto de tendas de pano puído, o aroma de especiarias misturado ao cheiro de couro e madeira molhada, e a voz de feirantes anunciando suas mercadorias.*\n\nPara darmos início à cena e rolar a narrativa:\n\n1. **Seu Personagem:** Qual é o nome do seu protagonista e qual a sua ocupação ou classe?\n2. **Sua Ação:** O seu personagem já está se aproximando da banca de Marta no Mercado Velho, ou você está observando de longe/chegando ao local por outro motivo?\n\nAssim que você definir, daremos início à primeira interação!",
+    "timestamp": 1787699755737,
+    "turn": 3,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787699755738_6vxnz",
+    "role": "user",
+    "content": "Marta encontrou um homem encapuzado no Mercado Velho.",
+    "timestamp": 1787699755738,
+    "turn": 4,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787699762155_w4wzy",
+    "role": "assistant",
+    "content": "*O sol, filtrado pela densa camada de nuvens cinzentas que paira sobre Brasen, mal consegue aquecer o Mercado Velho. O movimento é frenético, mas a atenção de Marta é subitamente desviada do fluxo habitual de clientes.*\n\n*Entre as fileiras de tendas, um homem envolto em uma capa de lã grossa e surrada se aproxima da banca dela. Ele mantém a cabeça baixa, o rosto completamente oculto pela sombra profunda do capuz. Ele para a poucos passos, sem dizer uma palavra, mas Marta sente que ele a observa com uma intensidade que corta o ruído da feira.*\n\nMarta sente um calafrio percorrer sua espinha. Ela limpa o balcão instintivamente com um pano, tentando manter a compostura de uma comerciante experiente, embora o silêncio daquele homem pareça pesar mais do que o movimento ao redor.\n\n— Posso ajudar, senhor? — ela pergunta, a voz levemente mais baixa do que o normal, tentando manter o tom profissional.\n\nO homem não responde imediatamente. Ele levanta levemente o rosto, e Marta percebe que ele carrega algo pesado sob a capa, algo que não parece ser uma mercadoria comum.\n\n---\n\n**Como você deseja prosseguir?**\n\n1. **Você é o personagem jogador (o homem encapuzado)?** Se sim, como você reage ou o que você diz a Marta?\n2. **Você prefere que o personagem jogador seja outra pessoa** observando essa cena de longe ou intervindo?\n3. **Ou deseja que eu continue narrando a interação entre Marta e este estranho?**\n\n*Por favor, defina quem é seu protagonista para continuarmos!*",
+    "timestamp": 1787699762156,
+    "turn": 4,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787699762156_0j1ak",
+    "role": "user",
+    "content": "Marta descobriu que o homem encapuzado é um espião de Valdor.",
+    "timestamp": 1787699762156,
+    "turn": 5,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "msg_1787745737680_q4am3",
+    "role": "user",
+    "content": "Falo com João sobre qualquer coisa.",
+    "timestamp": 1787745737680,
+    "turn": 1,
+    "metadata": {
+      "location": "Vila"
+    }
+  },
+  {
+    "id": "msg_1787745748272_78arh",
+    "role": "assistant",
+    "content": "*Você se aproxima de João, que está encostado numa cerca de madeira na praça central da Vila, observando o movimento tranquilo do dia.*\n\nAo notar sua aproximação, ele ajeita a postura e cumprimenta você com um aceno amigável de cabeça.\n\n\"Dia bom, não é? Não tenho muito a fazer por aqui no momento, além de ver o tempo passar. O que o traz por esses lados hoje? Quer conversar sobre algo em específico?\"\n\n*Ele fica aguardando sua resposta, curioso com sua presença.*",
+    "timestamp": 1787745748272,
+    "turn": 1,
+    "metadata": {
+      "location": "Vila"
+    }
+  },
+  {
+    "id": "msg_1787745755136_cjr4f",
+    "role": "user",
+    "content": "Digo a João: \"O Duque está transportando armas secretamente!\"",
+    "timestamp": 1787745755136,
+    "turn": 2,
+    "metadata": {
+      "location": "Vila"
+    }
+  }
+]

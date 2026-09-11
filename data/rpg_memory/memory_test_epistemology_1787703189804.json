@@ -1,0 +1,84 @@
+{
+  "campaign": {
+    "campaignId": "test_epistemology_1787703189804",
+    "name": "",
+    "createdAt": 1787703189811,
+    "currentDate": "",
+    "currentLocation": ""
+  },
+  "npcs": {
+    "npc_joao": {
+      "id": "npc_joao",
+      "name": "João",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Comerciantes",
+      "personalityNotes": "Um homem simples que vende tecidos e cuida de seus próprios negócios.",
+      "goals": [],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    },
+    "npc_marta": {
+      "id": "npc_marta",
+      "name": "Marta",
+      "status": "alive",
+      "location": "Mercado Velho",
+      "faction": "Guilda dos Artesãos",
+      "personalityNotes": "Observadora atenta e discreta.",
+      "goals": [],
+      "secrets": [],
+      "inventory": [],
+      "relationships": {}
+    }
+  },
+  "events": [],
+  "knowledge": [
+    {
+      "id": "know_1787703189813_azdq",
+      "fact": "Estêvão opera um esquema secreto de falsificação nos fundos do Mercado Velho.",
+      "truthStatus": "true",
+      "knownBy": [
+        "Marta"
+      ],
+      "suspectedBy": [],
+      "source": "Investigação pessoal de Marta",
+      "reliability": 9,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    },
+    {
+      "id": "know_1787703189815_vp25",
+      "fact": "João desconfia que guardas do porto estão aceitando propina para liberar caixotes sem vistoria.",
+      "truthStatus": "suspicion",
+      "knownBy": [],
+      "suspectedBy": [
+        "João"
+      ],
+      "source": "Observação casual de João no porto",
+      "reliability": 4,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    },
+    {
+      "id": "know_1787703189816_4h8l",
+      "fact": "João relatou ao jogador: \"João desconfia que guardas do porto estão aceitando propina para liberar caixotes sem vistoria.\"",
+      "truthStatus": "suspicion",
+      "knownBy": [
+        "Jogador",
+        "João"
+      ],
+      "suspectedBy": [
+        "João"
+      ],
+      "source": "Relato verbal de João ao jogador",
+      "reliability": 4,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    }
+  ],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787703189816
+}

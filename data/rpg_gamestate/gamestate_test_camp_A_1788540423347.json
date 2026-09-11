@@ -1,0 +1,47 @@
+{
+  "campaignId": "test_camp_A_1788540423347",
+  "turn": 0,
+  "foundation": {
+    "id": "found_1788540423347",
+    "title": "Crônicas de Valéria",
+    "genre": "Alta Fantasia",
+    "premise": "",
+    "tone": "",
+    "rulesOfUniverse": "",
+    "startingLocation": "Taverna do Javali Saltitante",
+    "createdAt": 1788540423347,
+    "campaignFormat": "sandbox",
+    "mechanicalProfile": "SANDBOX_D20"
+  },
+  "worldState": {
+    "currentLocation": "Taverna do Javali Saltitante",
+    "timeOfDay": "",
+    "weather": "",
+    "tensionLevel": "calm",
+    "statusSummary": ""
+  },
+  "player": {
+    "id": "char_player_1788540423347",
+    "name": "Valério O Bravo",
+    "role": "player",
+    "archetype": "",
+    "description": "",
+    "personality": "",
+    "backstory": "",
+    "goals": [],
+    "status": "alive",
+    "attributes": {}
+  },
+  "npcs": [],
+  "inventory": {
+    "characterId": "char_player_1788540423347",
+    "items": [],
+    "currency": {}
+  },
+  "quests": [],
+  "recentEvents": [],
+  "knowledgeBase": [],
+  "relationships": [],
+  "factions": [],
+  "updatedAt": 1788540423347
+}

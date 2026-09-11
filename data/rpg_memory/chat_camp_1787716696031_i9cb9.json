@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787716696031_o909v",
+    "role": "user",
+    "content": "Digo a João: \"O Duque está transportando armas secretamente!\"",
+    "timestamp": 1787716696031,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  },
+  {
+    "id": "msg_1787716706598_iilrf",
+    "role": "assistant",
+    "content": "João arqueia as sobrancelhas, o brilho de seus olhos mudando de uma curiosidade casual para uma cautela cortante. Ele olha rapidamente ao redor da taverna, certificando-se de que ninguém próximo tenha ouvido sua conversa, antes de inclinar-se um pouco mais em sua direção.\n\n\"Isso é uma acusação perigosa para se jogar no ar, meu amigo,\" ele responde com a voz baixa, quase um sussurro arrastado. \"O Duque tem olhos em cada esquina desta cidade. Se o que você diz tem fundamento, não é algo que devamos discutir aqui, onde as paredes têm ouvidos.\"\n\nEle apoia os cotovelos sobre a mesa de madeira gasta, mantendo o olhar fixo no seu, como se tentasse avaliar o quanto você sabe — ou o quanto você está disposto a arriscar.\n\n\"O que exatamente você viu? Ou quem te contou isso? Preciso de algo mais concreto se quiser que eu leve isso a sério.\"\n\nComo você pretende prosseguir?",
+    "timestamp": 1787716706598,
+    "turn": 1,
+    "metadata": {
+      "location": "Unknown"
+    }
+  }
+]

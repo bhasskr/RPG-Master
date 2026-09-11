@@ -1,0 +1,43 @@
+{
+  "campaign": {
+    "campaignId": "test_camp_t9",
+    "name": "Campanha T9",
+    "createdAt": 1787710508402,
+    "currentDate": "",
+    "currentLocation": ""
+  },
+  "npcs": {},
+  "events": [
+    {
+      "id": "evt_1787710508477_nll9",
+      "timestamp": 1787710508477,
+      "location": "Altar",
+      "participants": [
+        "player"
+      ],
+      "description": "Descoberta de segredo: a relíquia foi forjada com prata estelar...",
+      "consequences": [
+        "Informação adicionada ao registro do jogador"
+      ]
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "know_1787710508478_jrtk",
+      "fact": "a relíquia foi forjada com prata estelar",
+      "truthStatus": "true",
+      "knownBy": [
+        "player"
+      ],
+      "suspectedBy": [],
+      "source": "Descoberta na cena em Altar",
+      "reliability": 10,
+      "isWorldTruth": false,
+      "isPublicKnowledge": false
+    }
+  ],
+  "relationships": [],
+  "inventory": [],
+  "quests": [],
+  "updatedAt": 1787710508478
+}

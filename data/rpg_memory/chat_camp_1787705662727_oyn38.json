@@ -1,0 +1,22 @@
+[
+  {
+    "id": "msg_1787705662727_0tlo1",
+    "role": "user",
+    "content": "camp_integration_1787705649743",
+    "timestamp": 1787705662727,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  },
+  {
+    "id": "msg_1787705668984_2fa73",
+    "role": "assistant",
+    "content": "O sistema de campanha foi identificado e inicializado com sucesso.\n\n*Você se encontra em um mundo onde as sombras parecem se alongar mais do que o comum e o ar carrega uma leve eletricidade estática, prenúncio de algo incerto.*\n\nA campanha **\"Campanha de Teste\"** está ativa. Você está atualmente em **\"Taverna do Javali\"**, e a data registrada é **\"Dia 1\"**.\n\nO ambiente ao seu redor é o habitual de uma taverna: o cheiro de cerveja barata, o calor da lareira que crepita no centro do salão e o burburinho de vozes de aventureiros e moradores locais que buscam refúgio do frio da noite.\n\nComo deseja prosseguir? O que você faz?",
+    "timestamp": 1787705668984,
+    "turn": 1,
+    "metadata": {
+      "location": ""
+    }
+  }
+]

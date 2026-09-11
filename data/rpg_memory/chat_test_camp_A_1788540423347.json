@@ -1,0 +1,16 @@
+[
+  {
+    "id": "msg_a_1",
+    "role": "user",
+    "content": "Eu peço uma caneca de hidromel ao taverneiro.",
+    "timestamp": 1788540423347,
+    "turn": 1
+  },
+  {
+    "id": "msg_a_2",
+    "role": "assistant",
+    "content": "O taberneiro desliza uma caneca de madeira com espuma farta em sua direção.",
+    "timestamp": 1788540423364,
+    "turn": 1
+  }
+]
