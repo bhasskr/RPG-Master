@@ -21,11 +21,14 @@ import {
  * - Salva mensagens de chat separadamente das estruturas de memória
  * - Garante persistência determinística mesmo após reinicialização do servidor Node
  */
-function cloneSnapshot(snapshot: CampaignMemorySnapshot): CampaignMemorySnapshot {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(snapshot);
+function cloneSnapshot<T>(target: T): T {
+  if (target === undefined || target === null || typeof target !== 'object') {
+    return target;
   }
-  return JSON.parse(JSON.stringify(snapshot));
+  if (typeof structuredClone === 'function') {
+    return structuredClone(target);
+  }
+  return JSON.parse(JSON.stringify(target));
 }
 
 export class FilePersistentMemoryStore implements IPersistentMemoryStore {
@@ -36,7 +39,7 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
   private snapshotCache: Map<string, CampaignMemorySnapshot> = new Map();
   private messagesCache: Map<string, ChatMessage[]> = new Map();
 
-  // Fila de escrita para coordenar operações no mesmo arquivo de mensagens
+  // Fila de escrita para coordenar operações no mesmo arquivo de mensagens e snapshot
   private writeQueues: Map<string, Promise<any>> = new Map();
 
   constructor(dataDir?: string) {
@@ -45,14 +48,30 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
 
   private async executeWithCampaignWriteLock<T>(campaignId: string, task: () => Promise<T>): Promise<T> {
     const currentQueue = this.writeQueues.get(campaignId) || Promise.resolve();
-    
+
+    let releaseQueue: () => void = () => {};
+    const taskPromise = new Promise<void>((resolve) => {
+      releaseQueue = resolve;
+    });
+
     const nextPromise = currentQueue
       .catch(() => {})
       .then(async () => {
-        return await task();
+        try {
+          return await task();
+        } finally {
+          releaseQueue();
+        }
       });
 
-    this.writeQueues.set(campaignId, nextPromise);
+    this.writeQueues.set(campaignId, taskPromise);
+
+    taskPromise.finally(() => {
+      if (this.writeQueues.get(campaignId) === taskPromise) {
+        this.writeQueues.delete(campaignId);
+      }
+    });
+
     return await nextPromise;
   }
 
@@ -76,9 +95,27 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     return path.join(this.dataDir, `chat_${safeId}.json`);
   }
 
-  async getSnapshot(campaignId: string): Promise<CampaignMemorySnapshot | null> {
-    await this.ensureInitialized();
+  private createDefaultSnapshot(campaignId: string): CampaignMemorySnapshot {
+    return {
+      campaign: {
+        campaignId,
+        name: '',
+        createdAt: Date.now(),
+        currentDate: '',
+        currentLocation: '',
+      },
+      npcs: {},
+      events: [],
+      knowledge: [],
+      relationships: [],
+      inventory: [],
+      quests: [],
+      semanticRecords: [],
+      updatedAt: Date.now(),
+    };
+  }
 
+  private async internalGetSnapshot(campaignId: string): Promise<CampaignMemorySnapshot | null> {
     // 1. Verifica cache em memória (retorna cópia destacada profunda para isolamento total)
     if (this.snapshotCache.has(campaignId)) {
       return cloneSnapshot(this.snapshotCache.get(campaignId)!);
@@ -100,39 +137,66 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     }
   }
 
+  private async internalCommitSnapshot(campaignId: string, workingCopy: CampaignMemorySnapshot): Promise<void> {
+    workingCopy.updatedAt = Date.now();
+
+    const filePath = this.getMemoryFilePath(campaignId);
+    const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const serialized = JSON.stringify(workingCopy, null, 2);
+
+    try {
+      await fs.writeFile(tempPath, serialized, 'utf-8');
+      await fs.rename(tempPath, filePath);
+    } catch (err) {
+      try {
+        await fs.unlink(tempPath);
+      } catch {
+        // ignora se o temporário não existia
+      }
+      console.error(`[FilePersistentMemoryStore] Falha ao persistir snapshot ${campaignId}:`, err);
+      throw err;
+    }
+
+    // Atualização do cache somente após confirmação da persistência em disco
+    this.snapshotCache.set(campaignId, cloneSnapshot(workingCopy));
+  }
+
+  async getSnapshot(campaignId: string): Promise<CampaignMemorySnapshot | null> {
+    await this.ensureInitialized();
+    return this.internalGetSnapshot(campaignId);
+  }
+
   async saveSnapshot(snapshot: CampaignMemorySnapshot): Promise<void> {
     await this.ensureInitialized();
     const campaignId = snapshot.campaign.campaignId;
 
     return this.executeWithCampaignWriteLock(campaignId, async () => {
-      // 1. Constrói cópia de trabalho isolada e carimba data de atualização
       const workingCopy = cloneSnapshot(snapshot);
-      workingCopy.updatedAt = Date.now();
+      await this.internalCommitSnapshot(campaignId, workingCopy);
+    });
+  }
 
-      // 2. Caminhos do arquivo temporário e final
-      const filePath = this.getMemoryFilePath(campaignId);
-      const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      const serialized = JSON.stringify(workingCopy, null, 2);
+  async mutateSnapshot<TResult = CampaignMemorySnapshot>(
+    campaignId: string,
+    mutator: (snapshot: CampaignMemorySnapshot) => Promise<TResult> | TResult
+  ): Promise<TResult> {
+    await this.ensureInitialized();
 
-      try {
-        // 3. Escreve no arquivo temporário
-        await fs.writeFile(tempPath, serialized, 'utf-8');
-        // 4. Renomeia atomicamente
-        await fs.rename(tempPath, filePath);
-      } catch (err) {
-        // Limpeza segura do temporário se gerado
-        try {
-          await fs.unlink(tempPath);
-        } catch {
-          // ignora se o temporário não existia
-        }
-        console.error(`[FilePersistentMemoryStore] Falha ao persistir snapshot ${campaignId}:`, err);
-        // O cache NÃO é alterado em falha. A última versão confirmada permanece intacta.
-        throw err;
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      const latest = (await this.internalGetSnapshot(campaignId)) || this.createDefaultSnapshot(campaignId);
+      const workingCopy = cloneSnapshot(latest);
+
+      const result = await mutator(workingCopy);
+
+      await this.internalCommitSnapshot(campaignId, workingCopy);
+
+      if (result === undefined || (result as any) === workingCopy) {
+        return cloneSnapshot(workingCopy) as unknown as TResult;
       }
-
-      // 5. Atualização do cache somente após confirmação da persistência em disco
-      this.snapshotCache.set(campaignId, cloneSnapshot(workingCopy));
+      if (typeof result === 'object' && result !== null) {
+        return cloneSnapshot(result);
+      }
+      return result;
     });
   }
 

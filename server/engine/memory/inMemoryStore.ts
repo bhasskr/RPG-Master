@@ -10,6 +10,16 @@ import {
   ExpectedTurnState,
 } from './types';
 
+function cloneSnapshot<T>(target: T): T {
+  if (target === undefined || target === null || typeof target !== 'object') {
+    return target;
+  }
+  if (typeof structuredClone === 'function') {
+    return structuredClone(target);
+  }
+  return JSON.parse(JSON.stringify(target));
+}
+
 /**
  * InMemoryStore
  * Implementação puramente em memória de IPersistentMemoryStore para testes unitários.
@@ -17,18 +27,98 @@ import {
 export class InMemoryStore implements IPersistentMemoryStore {
   private snapshots: Map<string, CampaignMemorySnapshot> = new Map();
   private messagesByCampaign: Map<string, ChatMessage[]> = new Map();
+  private writeQueues: Map<string, Promise<any>> = new Map();
+
+  private async executeWithCampaignLock<T>(campaignId: string, task: () => Promise<T>): Promise<T> {
+    const currentQueue = this.writeQueues.get(campaignId) || Promise.resolve();
+
+    let releaseQueue: () => void = () => {};
+    const taskPromise = new Promise<void>((resolve) => {
+      releaseQueue = resolve;
+    });
+
+    const nextPromise = currentQueue
+      .catch(() => {})
+      .then(async () => {
+        try {
+          return await task();
+        } finally {
+          releaseQueue();
+        }
+      });
+
+    this.writeQueues.set(campaignId, taskPromise);
+
+    taskPromise.finally(() => {
+      if (this.writeQueues.get(campaignId) === taskPromise) {
+        this.writeQueues.delete(campaignId);
+      }
+    });
+
+    return await nextPromise;
+  }
+
+  private createDefaultSnapshot(campaignId: string): CampaignMemorySnapshot {
+    return {
+      campaign: {
+        campaignId,
+        name: '',
+        createdAt: Date.now(),
+        currentDate: '',
+        currentLocation: '',
+      },
+      npcs: {},
+      events: [],
+      knowledge: [],
+      relationships: [],
+      inventory: [],
+      quests: [],
+      semanticRecords: [],
+      updatedAt: Date.now(),
+    };
+  }
 
   async getSnapshot(campaignId: string): Promise<CampaignMemorySnapshot | null> {
     const s = this.snapshots.get(campaignId);
-    return s ? JSON.parse(JSON.stringify(s)) : null;
+    return s ? cloneSnapshot(s) : null;
   }
 
   async saveSnapshot(snapshot: CampaignMemorySnapshot): Promise<void> {
-    this.snapshots.set(snapshot.campaign.campaignId, JSON.parse(JSON.stringify(snapshot)));
+    const campaignId = snapshot.campaign.campaignId;
+    return this.executeWithCampaignLock(campaignId, async () => {
+      const workingCopy = cloneSnapshot(snapshot);
+      workingCopy.updatedAt = Date.now();
+      this.snapshots.set(campaignId, cloneSnapshot(workingCopy));
+    });
+  }
+
+  async mutateSnapshot<TResult = CampaignMemorySnapshot>(
+    campaignId: string,
+    mutator: (snapshot: CampaignMemorySnapshot) => Promise<TResult> | TResult
+  ): Promise<TResult> {
+    return this.executeWithCampaignLock(campaignId, async () => {
+      const existing = this.snapshots.get(campaignId) || this.createDefaultSnapshot(campaignId);
+      const workingCopy = cloneSnapshot(existing);
+
+      const result = await mutator(workingCopy);
+
+      workingCopy.updatedAt = Date.now();
+      this.snapshots.set(campaignId, cloneSnapshot(workingCopy));
+
+      if (result === undefined || (result as any) === workingCopy) {
+        return cloneSnapshot(workingCopy) as unknown as TResult;
+      }
+      if (typeof result === 'object' && result !== null) {
+        return cloneSnapshot(result);
+      }
+      return result;
+    });
   }
 
   async clearSnapshot(campaignId: string): Promise<void> {
-    this.snapshots.delete(campaignId);
+    return this.executeWithCampaignLock(campaignId, async () => {
+      this.snapshots.delete(campaignId);
+    });
   }
 
   async saveMessage(campaignId: string, message: ChatMessage): Promise<void> {

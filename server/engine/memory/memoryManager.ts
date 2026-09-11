@@ -9,6 +9,7 @@ import {
   Event,
   Knowledge,
   Relationship,
+  RelationshipUpdates,
   InventoryItem,
   Quest,
   CampaignMemorySnapshot,
@@ -94,59 +95,14 @@ export class MemoryManager {
   /**
    * Garante que um snapshot estruturado exista para a campanha
    */
-  private async getOrCreateSnapshot(campaignId: string): Promise<CampaignMemorySnapshot> {
-    let snapshot = await this.store.getSnapshot(campaignId);
-    if (!snapshot) {
-      snapshot = {
-        campaign: {
-          campaignId,
-          name: '',
-          createdAt: Date.now(),
-          currentDate: '',
-          currentLocation: '',
-        },
-        npcs: {},
-        events: [],
-        knowledge: [],
-        relationships: [],
-        inventory: [],
-        quests: [],
-        updatedAt: Date.now(),
-      };
-      await this.store.saveSnapshot(snapshot);
+  public async getOrCreateSnapshot(campaignId: string): Promise<CampaignMemorySnapshot> {
+    const existing = await this.store.getSnapshot(campaignId);
+    if (existing) {
+      return existing;
     }
-    return snapshot;
-  }
-
-  /**
-   * Atualiza as representações semânticas e salva o snapshot
-   */
-  private async persistSnapshot(snapshot: CampaignMemorySnapshot): Promise<void> {
-    snapshot.updatedAt = Date.now();
-    
-    // Indexar NPCs
-    for (const npc of Object.values(snapshot.npcs)) {
-      await this.semanticManager.indexEntity(npc.id, 'npc', this.semanticManager.formatNPC(npc), snapshot);
-    }
-    // Indexar Eventos
-    for (const event of snapshot.events) {
-      await this.semanticManager.indexEntity(event.id, 'event', this.semanticManager.formatEvent(event), snapshot);
-    }
-    // Indexar Conhecimentos
-    for (const know of snapshot.knowledge) {
-      await this.semanticManager.indexEntity(know.id, 'knowledge', this.semanticManager.formatKnowledge(know), snapshot);
-    }
-    // Indexar Quests
-    for (const quest of snapshot.quests) {
-      await this.semanticManager.indexEntity(quest.id, 'quest', this.semanticManager.formatQuest(quest), snapshot);
-    }
-    // Indexar Relações
-    for (const rel of snapshot.relationships) {
-      const id = `rel_${rel.characterA}_${rel.characterB}`;
-      await this.semanticManager.indexEntity(id, 'relationship', this.semanticManager.formatRelationship(rel), snapshot);
-    }
-
-    await this.store.saveSnapshot(snapshot);
+    return await this.store.mutateSnapshot(campaignId, (snapshot) => {
+      return snapshot;
+    });
   }
 
   // =================================================================
@@ -156,38 +112,24 @@ export class MemoryManager {
   async createCampaign(data: Partial<Campaign> & { campaignId?: string } = {}): Promise<Campaign> {
     const campaignId = data.campaignId || `camp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     try {
-      let snapshot = await this.store.getSnapshot(campaignId);
-      if (snapshot) {
-        snapshot.campaign = {
-          ...snapshot.campaign,
-          ...data,
-          campaignId,
-        };
-        snapshot.updatedAt = Date.now();
-        await this.persistSnapshot(snapshot);
-      } else {
-        const campaign: Campaign = {
-          campaignId,
-          name: data.name || '',
-          createdAt: data.createdAt || Date.now(),
-          currentDate: data.currentDate || '',
-          currentLocation: data.currentLocation || '',
-        };
-
-        snapshot = {
-          campaign,
-          npcs: {},
-          events: [],
-          knowledge: [],
-          relationships: [],
-          inventory: [],
-          quests: [],
-          updatedAt: Date.now(),
-        };
-        await this.persistSnapshot(snapshot);
-      }
-
-      const campaign = snapshot.campaign;
+      const campaign = await this.store.mutateSnapshot(campaignId, (snapshot) => {
+        if (!snapshot.campaign.name && !snapshot.campaign.currentLocation && Object.keys(snapshot.npcs).length === 0) {
+          snapshot.campaign = {
+            campaignId,
+            name: data.name || '',
+            createdAt: data.createdAt || Date.now(),
+            currentDate: data.currentDate || '',
+            currentLocation: data.currentLocation || '',
+          };
+        } else {
+          snapshot.campaign = {
+            ...snapshot.campaign,
+            ...data,
+            campaignId,
+          };
+        }
+        return snapshot.campaign;
+      });
 
       this.recordLog({
         operation: 'CREATE',
@@ -244,24 +186,25 @@ export class MemoryManager {
 
   async updateCampaign(campaignId: string, updates: Partial<Campaign>): Promise<Campaign | null> {
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
-      snapshot.campaign = {
-        ...snapshot.campaign,
-        ...updates,
-        campaignId,
-      };
-      await this.persistSnapshot(snapshot);
+      const campaign = await this.store.mutateSnapshot(campaignId, (snapshot) => {
+        snapshot.campaign = {
+          ...snapshot.campaign,
+          ...updates,
+          campaignId,
+        };
+        return snapshot.campaign;
+      });
 
       this.recordLog({
         operation: 'UPDATE',
         functionName: 'updateCampaign',
-        entity: `Campaign: ${snapshot.campaign.name || campaignId}`,
+        entity: `Campaign: ${campaign?.name || campaignId}`,
         campaignId,
         status: 'success',
         details: `Campos atualizados: ${Object.keys(updates).join(', ')}`,
       });
 
-      return snapshot.campaign;
+      return campaign;
     } catch (err: unknown) {
       const errMsg = (err as Error)?.message || String(err);
       this.recordLog({
@@ -283,23 +226,24 @@ export class MemoryManager {
   async createNPC(campaignId: string, npcData: Partial<NPC> & { name: string }): Promise<NPC> {
     const id = npcData.id || `npc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
+      const npc = await this.store.mutateSnapshot(campaignId, async (snapshot) => {
+        const newNpc: NPC = {
+          id,
+          name: npcData.name || '',
+          status: npcData.status || 'alive',
+          location: npcData.location || '',
+          faction: npcData.faction || '',
+          personalityNotes: npcData.personalityNotes || '',
+          goals: npcData.goals || [],
+          secrets: npcData.secrets || [],
+          inventory: npcData.inventory || [],
+          relationships: npcData.relationships || {},
+        };
 
-      const npc: NPC = {
-        id,
-        name: npcData.name || '',
-        status: npcData.status || 'alive',
-        location: npcData.location || '',
-        faction: npcData.faction || '',
-        personalityNotes: npcData.personalityNotes || '',
-        goals: npcData.goals || [],
-        secrets: npcData.secrets || [],
-        inventory: npcData.inventory || [],
-        relationships: npcData.relationships || {},
-      };
-
-      snapshot.npcs[id] = npc;
-      await this.persistSnapshot(snapshot);
+        snapshot.npcs[id] = newNpc;
+        await this.semanticManager.indexEntity(id, 'npc', this.semanticManager.formatNPC(newNpc), snapshot);
+        return newNpc;
+      });
 
       this.recordLog({
         operation: 'CREATE',
@@ -368,62 +312,67 @@ export class MemoryManager {
 
   async updateNPC(campaignId: string, npcId: string, updates: Partial<NPC>): Promise<NPC | null> {
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
-      let targetKey = npcId;
-      let existing = snapshot.npcs[npcId];
+      let wasExisting = false;
+      const updated = await this.store.mutateSnapshot(campaignId, async (snapshot) => {
+        let targetKey = npcId;
+        let existing = snapshot.npcs[npcId];
 
-      if (!existing) {
-        const target = npcId.toLowerCase().trim();
-        const found = Object.entries(snapshot.npcs).find(
-          ([k, n]) =>
-            k.toLowerCase() === target ||
-            n.id.toLowerCase() === target ||
-            n.name.toLowerCase() === target ||
-            n.name.toLowerCase().includes(target)
-        );
-        if (found) {
-          targetKey = found[0];
-          existing = found[1];
-        }
-      }
-
-      let updated: NPC;
-      if (existing) {
-        // Anti-retcon: NPC morto permanece morto a menos que haja ressurreição explícita
-        if (existing.status === 'dead' && updates.status && updates.status !== 'dead') {
-          const hasResurrectionCause = updates.personalityNotes?.toLowerCase().includes('ressurrei') || updates.personalityNotes?.toLowerCase().includes('revive');
-          if (!hasResurrectionCause) {
-            updates.status = 'dead';
+        if (!existing) {
+          const target = npcId.toLowerCase().trim();
+          const found = Object.entries(snapshot.npcs).find(
+            ([k, n]) =>
+              k.toLowerCase() === target ||
+              n.id.toLowerCase() === target ||
+              n.name.toLowerCase() === target ||
+              n.name.toLowerCase().includes(target)
+          );
+          if (found) {
+            targetKey = found[0];
+            existing = found[1];
           }
         }
 
-        updated = {
-          ...existing,
-          ...updates,
-          id: existing.id,
-        };
-        snapshot.npcs[targetKey] = updated;
-      } else {
-        const newId = npcId.startsWith('npc_') ? npcId : `npc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-        updated = {
-          id: newId,
-          name: updates.name || npcId,
-          status: updates.status || 'alive',
-          location: updates.location || '',
-          faction: updates.faction || '',
-          personalityNotes: updates.personalityNotes || '',
-          goals: updates.goals || [],
-          secrets: updates.secrets || [],
-          inventory: updates.inventory || [],
-          relationships: updates.relationships || {},
-        };
-        snapshot.npcs[newId] = updated;
-      }
+        let finalNpc: NPC;
+        if (existing) {
+          wasExisting = true;
+          // Anti-retcon: NPC morto permanece morto a menos que haja ressurreição explícita
+          if (existing.status === 'dead' && updates.status && updates.status !== 'dead') {
+            const hasResurrectionCause = updates.personalityNotes?.toLowerCase().includes('ressurrei') || updates.personalityNotes?.toLowerCase().includes('revive');
+            if (!hasResurrectionCause) {
+              updates.status = 'dead';
+            }
+          }
 
-      await this.persistSnapshot(snapshot);
+          finalNpc = {
+            ...existing,
+            ...updates,
+            id: existing.id,
+          };
+          snapshot.npcs[targetKey] = finalNpc;
+        } else {
+          wasExisting = false;
+          const newId = npcId.startsWith('npc_') ? npcId : `npc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          finalNpc = {
+            id: newId,
+            name: updates.name || npcId,
+            status: updates.status || 'alive',
+            location: updates.location || '',
+            faction: updates.faction || '',
+            personalityNotes: updates.personalityNotes || '',
+            goals: updates.goals || [],
+            secrets: updates.secrets || [],
+            inventory: updates.inventory || [],
+            relationships: updates.relationships || {},
+          };
+          snapshot.npcs[newId] = finalNpc;
+        }
+
+        await this.semanticManager.indexEntity(finalNpc.id, 'npc', this.semanticManager.formatNPC(finalNpc), snapshot);
+        return finalNpc;
+      });
 
       this.recordLog({
-        operation: existing ? 'UPDATE' : 'CREATE',
+        operation: wasExisting ? 'UPDATE' : 'CREATE',
         functionName: 'updateNPC',
         entity: `NPC: ${updated.name || npcId}`,
         campaignId,
@@ -485,19 +434,20 @@ export class MemoryManager {
   ): Promise<Event> {
     const id = eventData.id || `evt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
+      const event = await this.store.mutateSnapshot(campaignId, async (snapshot) => {
+        const newEvent: Event = {
+          id,
+          timestamp: eventData.timestamp || Date.now(),
+          location: eventData.location || '',
+          participants: eventData.participants || [],
+          description: eventData.description || '',
+          consequences: eventData.consequences || [],
+        };
 
-      const event: Event = {
-        id,
-        timestamp: eventData.timestamp || Date.now(),
-        location: eventData.location || '',
-        participants: eventData.participants || [],
-        description: eventData.description || '',
-        consequences: eventData.consequences || [],
-      };
-
-      snapshot.events.push(event);
-      await this.persistSnapshot(snapshot);
+        snapshot.events.push(newEvent);
+        await this.semanticManager.indexEntity(id, 'event', this.semanticManager.formatEvent(newEvent), snapshot);
+        return newEvent;
+      });
 
       this.recordLog({
         operation: 'CREATE',
@@ -615,99 +565,91 @@ export class MemoryManager {
   }
 
   async createKnowledge(campaignId: string, knowledgeData: Partial<Knowledge> & { fact: string }): Promise<Knowledge> {
+    const id = knowledgeData.id || `know_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
-      const id = knowledgeData.id || `know_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-      const truthStatus = knowledgeData.truthStatus || 'true';
-      const knownBy = knowledgeData.knownBy || [];
-      const suspectedBy = knowledgeData.suspectedBy || [];
+      const knowledge = await this.store.mutateSnapshot(campaignId, async (snapshot) => {
+        const truthStatus = knowledgeData.truthStatus || 'true';
+        const knownBy = knowledgeData.knownBy || [];
+        const suspectedBy = knowledgeData.suspectedBy || [];
 
-      // Fatos universais só são World Truth se explicitamente marcados ou se verdadeiros e de domínio geral
-      const isWorldTruth =
-        knowledgeData.isWorldTruth !== undefined
-          ? knowledgeData.isWorldTruth
-          : (truthStatus === 'true' && (knownBy.length === 0 || knowledgeData.isPublicKnowledge === true));
-          
-      const epistemicStatus = knowledgeData.epistemicStatus || (isWorldTruth ? 'WORLD_TRUTH' : 'UNKNOWN');
+        // Fatos universais só são World Truth se explicitamente marcados ou se verdadeiros e de domínio geral
+        const isWorldTruth =
+          knowledgeData.isWorldTruth !== undefined
+            ? knowledgeData.isWorldTruth
+            : (truthStatus === 'true' && (knownBy.length === 0 || knowledgeData.isPublicKnowledge === true));
+            
+        const epistemicStatus = knowledgeData.epistemicStatus || (isWorldTruth ? 'WORLD_TRUTH' : 'UNKNOWN');
 
-      // --- DEDUPLICAÇÃO (UPSERT) ---
-      const normalizedNewFact = (knowledgeData.fact || '').toLowerCase().trim();
-      
-      const existingIdx = snapshot.knowledge.findIndex(k => {
-          if (knowledgeData.id && k.id === knowledgeData.id) return true;
-          const normalizedExisting = k.fact.toLowerCase().trim();
-          
-          const sameFact = normalizedExisting === normalizedNewFact;
-          const sameBaseTruth = k.truthStatus === truthStatus;
-          const isCompatibleEpistemic = (k.epistemicStatus === epistemicStatus) || 
-                                        (k.isWorldTruth === isWorldTruth);
+        // --- DEDUPLICAÇÃO (UPSERT) ---
+        const normalizedNewFact = (knowledgeData.fact || '').toLowerCase().trim();
+        
+        const existingIdx = snapshot.knowledge.findIndex(k => {
+            if (knowledgeData.id && k.id === knowledgeData.id) return true;
+            const normalizedExisting = k.fact.toLowerCase().trim();
+            
+            const sameFact = normalizedExisting === normalizedNewFact;
+            const sameBaseTruth = k.truthStatus === truthStatus;
+            const isCompatibleEpistemic = (k.epistemicStatus === epistemicStatus) || 
+                                          (k.isWorldTruth === isWorldTruth);
 
-          return sameFact && sameBaseTruth && isCompatibleEpistemic;
+            return sameFact && sameBaseTruth && isCompatibleEpistemic;
+        });
+
+        if (existingIdx !== -1) {
+            const existing = snapshot.knowledge[existingIdx];
+            const mergeArrays = (arr1: string[] = [], arr2: string[] = []) => Array.from(new Set([...arr1, ...arr2]));
+
+            const updated: Knowledge = {
+                ...existing,
+                isWorldTruth: knowledgeData.isWorldTruth !== undefined ? knowledgeData.isWorldTruth : existing.isWorldTruth,
+                isPublicKnowledge: knowledgeData.isPublicKnowledge !== undefined ? knowledgeData.isPublicKnowledge : existing.isPublicKnowledge,
+                knownBy: mergeArrays(existing.knownBy, knowledgeData.knownBy),
+                suspectedBy: mergeArrays(existing.suspectedBy, knowledgeData.suspectedBy),
+                observedBy: mergeArrays(existing.observedBy, knowledgeData.observedBy),
+                believedBy: mergeArrays(existing.believedBy, knowledgeData.believedBy),
+                disputedBy: mergeArrays(existing.disputedBy, knowledgeData.disputedBy),
+                informationChain: knowledgeData.informationChain && knowledgeData.informationChain.length > 0 
+                    ? knowledgeData.informationChain 
+                    : existing.informationChain,
+                source: knowledgeData.source || existing.source,
+                reliability: knowledgeData.reliability !== undefined ? knowledgeData.reliability : existing.reliability,
+                confidence: knowledgeData.confidence !== undefined ? knowledgeData.confidence : existing.confidence,
+                lastUpdatedAt: Date.now()
+            };
+
+            snapshot.knowledge[existingIdx] = updated;
+            await this.semanticManager.indexEntity(updated.id, 'knowledge', this.semanticManager.formatKnowledge(updated), snapshot);
+            return updated;
+        }
+        // --- FIM DA DEDUPLICAÇÃO ---
+
+        const newKnowledge: Knowledge = {
+          id,
+          fact: knowledgeData.fact || '',
+          truthStatus,
+          knownBy,
+          suspectedBy,
+          source: knowledgeData.source || '',
+          reliability: knowledgeData.reliability !== undefined ? knowledgeData.reliability : 10,
+          isWorldTruth,
+          isPublicKnowledge: knowledgeData.isPublicKnowledge || false,
+          epistemicStatus,
+          knowledgeType: knowledgeData.knowledgeType,
+          confidence: knowledgeData.confidence !== undefined ? knowledgeData.confidence : 10,
+          observedBy: knowledgeData.observedBy || [],
+          believedBy: knowledgeData.believedBy || [],
+          disputedBy: knowledgeData.disputedBy || [],
+          evidence: knowledgeData.evidence || [],
+          relatedKnowledge: knowledgeData.relatedKnowledge || [],
+          acquiredAt: Date.now(),
+          lastUpdatedAt: Date.now(),
+          informationChain: knowledgeData.informationChain || [],
+        };
+
+        snapshot.knowledge.push(newKnowledge);
+        await this.semanticManager.indexEntity(id, 'knowledge', this.semanticManager.formatKnowledge(newKnowledge), snapshot);
+        return newKnowledge;
       });
-
-      if (existingIdx !== -1) {
-          const existing = snapshot.knowledge[existingIdx];
-          const mergeArrays = (arr1: string[] = [], arr2: string[] = []) => Array.from(new Set([...arr1, ...arr2]));
-
-          const updated: Knowledge = {
-              ...existing,
-              isWorldTruth: knowledgeData.isWorldTruth !== undefined ? knowledgeData.isWorldTruth : existing.isWorldTruth,
-              isPublicKnowledge: knowledgeData.isPublicKnowledge !== undefined ? knowledgeData.isPublicKnowledge : existing.isPublicKnowledge,
-              knownBy: mergeArrays(existing.knownBy, knowledgeData.knownBy),
-              suspectedBy: mergeArrays(existing.suspectedBy, knowledgeData.suspectedBy),
-              observedBy: mergeArrays(existing.observedBy, knowledgeData.observedBy),
-              believedBy: mergeArrays(existing.believedBy, knowledgeData.believedBy),
-              disputedBy: mergeArrays(existing.disputedBy, knowledgeData.disputedBy),
-              informationChain: knowledgeData.informationChain && knowledgeData.informationChain.length > 0 
-                  ? knowledgeData.informationChain 
-                  : existing.informationChain,
-              source: knowledgeData.source || existing.source,
-              reliability: knowledgeData.reliability !== undefined ? knowledgeData.reliability : existing.reliability,
-              confidence: knowledgeData.confidence !== undefined ? knowledgeData.confidence : existing.confidence,
-              lastUpdatedAt: Date.now()
-          };
-
-          snapshot.knowledge[existingIdx] = updated;
-          await this.persistSnapshot(snapshot);
-
-          this.recordLog({
-            operation: 'UPDATE',
-            functionName: 'createKnowledge',
-            entity: `Knowledge: ${existing.id}`,
-            campaignId,
-            status: 'success',
-            details: `Upserted Fact: "${updated.fact.slice(0, 45)}..." | Merge aplicado.`,
-          });
-
-          return updated;
-      }
-      // --- FIM DA DEDUPLICAÇÃO ---
-
-      const knowledge: Knowledge = {
-        id,
-        fact: knowledgeData.fact || '',
-        truthStatus,
-        knownBy,
-        suspectedBy,
-        source: knowledgeData.source || '',
-        reliability: knowledgeData.reliability !== undefined ? knowledgeData.reliability : 10,
-        isWorldTruth,
-        isPublicKnowledge: knowledgeData.isPublicKnowledge || false,
-        epistemicStatus,
-        knowledgeType: knowledgeData.knowledgeType,
-        confidence: knowledgeData.confidence !== undefined ? knowledgeData.confidence : 10,
-        observedBy: knowledgeData.observedBy || [],
-        believedBy: knowledgeData.believedBy || [],
-        disputedBy: knowledgeData.disputedBy || [],
-        evidence: knowledgeData.evidence || [],
-        relatedKnowledge: knowledgeData.relatedKnowledge || [],
-        acquiredAt: Date.now(),
-        lastUpdatedAt: Date.now(),
-        informationChain: knowledgeData.informationChain || [],
-      };
-
-      snapshot.knowledge.push(knowledge);
-      await this.persistSnapshot(snapshot);
 
       this.recordLog({
         operation: 'CREATE',
@@ -735,43 +677,56 @@ export class MemoryManager {
 
   async updateKnowledge(campaignId: string, knowledgeId: string, updates: Partial<Knowledge>): Promise<Knowledge | null> {
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
-      const index = snapshot.knowledge.findIndex((k) => k.id === knowledgeId);
-      if (index === -1) {
+      const updated = await this.store.mutateSnapshot(campaignId, async (snapshot) => {
+        const index = snapshot.knowledge.findIndex((k) => k.id === knowledgeId);
+        if (index === -1) {
+          return null;
+        }
+
+        const existing = snapshot.knowledge[index];
+        const updatedKnownBy = updates.knownBy
+          ? Array.from(new Set([...(existing.knownBy || []), ...updates.knownBy]))
+          : existing.knownBy;
+        const updatedSuspectedBy = updates.suspectedBy
+          ? Array.from(new Set([...(existing.suspectedBy || []), ...updates.suspectedBy]))
+          : existing.suspectedBy;
+        const updatedObservedBy = updates.observedBy
+          ? Array.from(new Set([...(existing.observedBy || []), ...updates.observedBy]))
+          : existing.observedBy;
+        const updatedBelievedBy = updates.believedBy
+          ? Array.from(new Set([...(existing.believedBy || []), ...updates.believedBy]))
+          : existing.believedBy;
+        const updatedDisputedBy = updates.disputedBy
+          ? Array.from(new Set([...(existing.disputedBy || []), ...updates.disputedBy]))
+          : existing.disputedBy;
+
+        const result: Knowledge = {
+          ...existing,
+          ...updates,
+          knownBy: updatedKnownBy,
+          suspectedBy: updatedSuspectedBy,
+          observedBy: updatedObservedBy,
+          believedBy: updatedBelievedBy,
+          disputedBy: updatedDisputedBy,
+          lastUpdatedAt: Date.now()
+        };
+
+        snapshot.knowledge[index] = result;
+        await this.semanticManager.indexEntity(result.id, 'knowledge', this.semanticManager.formatKnowledge(result), snapshot);
+        return result;
+      });
+
+      if (!updated) {
+        this.recordLog({
+          operation: 'UPDATE',
+          functionName: 'updateKnowledge',
+          entity: `Knowledge: ${knowledgeId}`,
+          campaignId,
+          status: 'error',
+          error: 'Conhecimento não encontrado para atualização',
+        });
         return null;
       }
-
-      const existing = snapshot.knowledge[index];
-      const updatedKnownBy = updates.knownBy
-        ? Array.from(new Set([...(existing.knownBy || []), ...updates.knownBy]))
-        : existing.knownBy;
-      const updatedSuspectedBy = updates.suspectedBy
-        ? Array.from(new Set([...(existing.suspectedBy || []), ...updates.suspectedBy]))
-        : existing.suspectedBy;
-      const updatedObservedBy = updates.observedBy
-        ? Array.from(new Set([...(existing.observedBy || []), ...updates.observedBy]))
-        : existing.observedBy;
-      const updatedBelievedBy = updates.believedBy
-        ? Array.from(new Set([...(existing.believedBy || []), ...updates.believedBy]))
-        : existing.believedBy;
-      const updatedDisputedBy = updates.disputedBy
-        ? Array.from(new Set([...(existing.disputedBy || []), ...updates.disputedBy]))
-        : existing.disputedBy;
-
-      const updated: Knowledge = {
-        ...existing,
-        ...updates,
-        knownBy: updatedKnownBy,
-        suspectedBy: updatedSuspectedBy,
-        observedBy: updatedObservedBy,
-        believedBy: updatedBelievedBy,
-        disputedBy: updatedDisputedBy,
-        lastUpdatedAt: Date.now()
-      };
-
-      snapshot.knowledge[index] = updated;
-      snapshot.updatedAt = Date.now();
-      await this.persistSnapshot(snapshot);
 
       this.recordLog({
         operation: 'UPDATE',
@@ -980,47 +935,87 @@ export class MemoryManager {
     campaignId: string,
     characterA: string,
     characterB: string,
-    updates: Partial<Relationship>
+    updates: RelationshipUpdates
   ): Promise<Relationship> {
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
-      const charA = characterA.toLowerCase();
-      const charB = characterB.toLowerCase();
+      let isUpdate = false;
+      const result = await this.store.mutateSnapshot(campaignId, async (snapshot) => {
+        const charA = characterA.toLowerCase();
+        const charB = characterB.toLowerCase();
 
-      const index = snapshot.relationships.findIndex(
-        (r) =>
-          (r.characterA.toLowerCase() === charA && r.characterB.toLowerCase() === charB) ||
-          (r.characterA.toLowerCase() === charB && r.characterB.toLowerCase() === charA)
-      );
+        const index = snapshot.relationships.findIndex(
+          (r) =>
+            (r.characterA.toLowerCase() === charA && r.characterB.toLowerCase() === charB) ||
+            (r.characterA.toLowerCase() === charB && r.characterB.toLowerCase() === charA)
+        );
 
-      let result: Relationship;
+        let finalRel: Relationship;
 
-      if (index >= 0) {
-        const existing = snapshot.relationships[index];
-        result = {
-          ...existing,
-          ...updates,
-          characterA: existing.characterA,
-          characterB: existing.characterB,
-          importantHistory: updates.importantHistory || existing.importantHistory,
-        };
-        snapshot.relationships[index] = result;
-      } else {
-        result = {
-          characterA,
-          characterB,
-          trust: updates.trust !== undefined ? updates.trust : 0,
-          hostility: updates.hostility !== undefined ? updates.hostility : 0,
-          familiarity: updates.familiarity !== undefined ? updates.familiarity : 0,
-          importantHistory: updates.importantHistory || [],
-        };
-        snapshot.relationships.push(result);
-      }
+        if (index >= 0) {
+          isUpdate = true;
+          const existing = snapshot.relationships[index];
+          const calcTrust = updates.trustChange !== undefined
+            ? existing.trust + updates.trustChange
+            : (updates.trust !== undefined ? updates.trust : existing.trust);
+          const calcHostility = updates.hostilityChange !== undefined
+            ? existing.hostility + updates.hostilityChange
+            : (updates.hostility !== undefined ? updates.hostility : existing.hostility);
+          const calcFamiliarity = updates.familiarityChange !== undefined
+            ? existing.familiarity + updates.familiarityChange
+            : (updates.familiarity !== undefined ? updates.familiarity : existing.familiarity);
 
-      await this.persistSnapshot(snapshot);
+          const mergedHistory = updates.importantHistory
+            ? Array.from(new Set([...(existing.importantHistory || []), ...updates.importantHistory]))
+            : existing.importantHistory;
+
+          finalRel = {
+            ...existing,
+            ...updates,
+            characterA: existing.characterA,
+            characterB: existing.characterB,
+            trust: Math.max(-100, Math.min(100, calcTrust)),
+            hostility: Math.max(-100, Math.min(100, calcHostility)),
+            familiarity: Math.max(0, Math.min(10, calcFamiliarity)),
+            importantHistory: mergedHistory,
+          };
+          delete (finalRel as any).trustChange;
+          delete (finalRel as any).hostilityChange;
+          delete (finalRel as any).familiarityChange;
+
+          snapshot.relationships[index] = finalRel;
+        } else {
+          isUpdate = false;
+          const initTrust = (updates.trust !== undefined ? updates.trust : 0) + (updates.trustChange || 0);
+          const initHostility = (updates.hostility !== undefined ? updates.hostility : 0) + (updates.hostilityChange || 0);
+          const initFamiliarity = (updates.familiarity !== undefined ? updates.familiarity : 0) + (updates.familiarityChange || 0);
+
+          finalRel = {
+            characterA,
+            characterB,
+            trust: Math.max(-100, Math.min(100, initTrust)),
+            hostility: Math.max(-100, Math.min(100, initHostility)),
+            familiarity: Math.max(0, Math.min(10, initFamiliarity)),
+            importantHistory: updates.importantHistory || [],
+          };
+          delete (finalRel as any).trustChange;
+          delete (finalRel as any).hostilityChange;
+          delete (finalRel as any).familiarityChange;
+
+          snapshot.relationships.push(finalRel);
+        }
+
+        await this.semanticManager.indexEntity(
+          `rel_${finalRel.characterA}_${finalRel.characterB}`,
+          'relationship',
+          this.semanticManager.formatRelationship(finalRel),
+          snapshot
+        );
+
+        return finalRel;
+      });
 
       this.recordLog({
-        operation: index >= 0 ? 'UPDATE' : 'CREATE',
+        operation: isUpdate ? 'UPDATE' : 'CREATE',
         functionName: 'updateRelationship',
         entity: `Relationship: ${characterA} <-> ${characterB}`,
         campaignId,
@@ -1087,34 +1082,34 @@ export class MemoryManager {
     mode: 'set' | 'add' = 'set'
   ): Promise<InventoryItem[]> {
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
-      const ownerLower = owner.toLowerCase();
-      const itemLower = item.toLowerCase();
+      const currentItems = await this.store.mutateSnapshot(campaignId, (snapshot) => {
+        const ownerLower = owner.toLowerCase();
+        const itemLower = item.toLowerCase();
 
-      const index = snapshot.inventory.findIndex(
-        (i) => i.owner.toLowerCase() === ownerLower && i.item.toLowerCase() === itemLower
-      );
+        const index = snapshot.inventory.findIndex(
+          (i) => i.owner.toLowerCase() === ownerLower && i.item.toLowerCase() === itemLower
+        );
 
-      if (index >= 0) {
-        if (mode === 'add') {
-          snapshot.inventory[index].quantity += quantity;
-        } else {
-          snapshot.inventory[index].quantity = quantity;
+        if (index >= 0) {
+          if (mode === 'add') {
+            snapshot.inventory[index].quantity += quantity;
+          } else {
+            snapshot.inventory[index].quantity = quantity;
+          }
+
+          if (snapshot.inventory[index].quantity <= 0) {
+            snapshot.inventory.splice(index, 1);
+          }
+        } else if (quantity > 0) {
+          snapshot.inventory.push({
+            owner,
+            item,
+            quantity,
+          });
         }
 
-        if (snapshot.inventory[index].quantity <= 0) {
-          snapshot.inventory.splice(index, 1);
-        }
-      } else if (quantity > 0) {
-        snapshot.inventory.push({
-          owner,
-          item,
-          quantity,
-        });
-      }
-
-      await this.persistSnapshot(snapshot);
-      const currentItems = snapshot.inventory.filter((i) => i.owner.toLowerCase() === ownerLower);
+        return snapshot.inventory.filter((i) => i.owner.toLowerCase() === ownerLower);
+      });
 
       this.recordLog({
         operation: 'UPDATE',
@@ -1182,19 +1177,20 @@ export class MemoryManager {
   async createQuest(campaignId: string, questData: Partial<Quest> & { title: string }): Promise<Quest> {
     const id = questData.id || `quest_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
+      const quest = await this.store.mutateSnapshot(campaignId, async (snapshot) => {
+        const newQuest: Quest = {
+          id,
+          title: questData.title || '',
+          status: questData.status || 'active',
+          participants: questData.participants || [],
+          objectives: questData.objectives || [],
+          consequences: questData.consequences || [],
+        };
 
-      const quest: Quest = {
-        id,
-        title: questData.title || '',
-        status: questData.status || 'active',
-        participants: questData.participants || [],
-        objectives: questData.objectives || [],
-        consequences: questData.consequences || [],
-      };
-
-      snapshot.quests.push(quest);
-      await this.persistSnapshot(snapshot);
+        snapshot.quests.push(newQuest);
+        await this.semanticManager.indexEntity(id, 'quest', this.semanticManager.formatQuest(newQuest), snapshot);
+        return newQuest;
+      });
 
       this.recordLog({
         operation: 'CREATE',
@@ -1222,63 +1218,57 @@ export class MemoryManager {
 
   async updateQuest(campaignId: string, questId: string, updates: Partial<Quest>): Promise<Quest | null> {
     try {
-      const snapshot = await this.getOrCreateSnapshot(campaignId);
-      const target = questId.toLowerCase().trim();
-      let index = snapshot.quests.findIndex(
-        (q) => q.id.toLowerCase() === target || q.title.toLowerCase() === target || q.title.toLowerCase().includes(target)
-      );
+      let isCreate = false;
+      const updated = await this.store.mutateSnapshot(campaignId, async (snapshot) => {
+        const target = questId.toLowerCase().trim();
+        let index = snapshot.quests.findIndex(
+          (q) => q.id.toLowerCase() === target || q.title.toLowerCase() === target || q.title.toLowerCase().includes(target)
+        );
 
-      if (index < 0) {
-        // Create new quest if updating non-existing
-        const newQuest: Quest = {
-          id: questId.startsWith('quest_') ? questId : `quest_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          title: updates.title || questId,
-          status: updates.status || 'active',
-          participants: updates.participants || [],
-          objectives: updates.objectives || [],
-          consequences: updates.consequences || [],
-        };
-        snapshot.quests.push(newQuest);
-        await this.persistSnapshot(snapshot);
-
-        this.recordLog({
-          operation: 'CREATE',
-          functionName: 'updateQuest',
-          entity: `Quest: ${newQuest.title}`,
-          campaignId,
-          status: 'success',
-          details: `Criada nova quest ao atualizar: ${newQuest.title}`,
-        });
-
-        return newQuest;
-      }
-
-      const existing = snapshot.quests[index];
-      
-      // Anti-retcon: Quest concluída não volta ao estado ativo/pendente acidentalmente
-      if (existing.status === 'completed' && updates.status && updates.status !== 'completed') {
-        const canReopen = updates.consequences && updates.consequences.some(c => c.toLowerCase().includes('reabrir') || c.toLowerCase().includes('reaberta'));
-        if (!canReopen) {
-          updates.status = 'completed';
+        if (index < 0) {
+          isCreate = true;
+          const newQuest: Quest = {
+            id: questId.startsWith('quest_') ? questId : `quest_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            title: updates.title || questId,
+            status: updates.status || 'active',
+            participants: updates.participants || [],
+            objectives: updates.objectives || [],
+            consequences: updates.consequences || [],
+          };
+          snapshot.quests.push(newQuest);
+          await this.semanticManager.indexEntity(newQuest.id, 'quest', this.semanticManager.formatQuest(newQuest), snapshot);
+          return newQuest;
         }
-      }
 
-      const updated: Quest = {
-        ...existing,
-        ...updates,
-        id: existing.id,
-      };
+        isCreate = false;
+        const existing = snapshot.quests[index];
+        
+        // Anti-retcon: Quest concluída não volta ao estado ativo/pendente acidentalmente
+        if (existing.status === 'completed' && updates.status && updates.status !== 'completed') {
+          const canReopen = updates.consequences && updates.consequences.some(c => c.toLowerCase().includes('reabrir') || c.toLowerCase().includes('reaberta'));
+          if (!canReopen) {
+            updates.status = 'completed';
+          }
+        }
 
-      snapshot.quests[index] = updated;
-      await this.persistSnapshot(snapshot);
+        const finalQuest: Quest = {
+          ...existing,
+          ...updates,
+          id: existing.id,
+        };
+
+        snapshot.quests[index] = finalQuest;
+        await this.semanticManager.indexEntity(finalQuest.id, 'quest', this.semanticManager.formatQuest(finalQuest), snapshot);
+        return finalQuest;
+      });
 
       this.recordLog({
-        operation: 'UPDATE',
+        operation: isCreate ? 'CREATE' : 'UPDATE',
         functionName: 'updateQuest',
         entity: `Quest: ${updated.title || questId}`,
         campaignId,
         status: 'success',
-        details: `Campos: ${Object.keys(updates).join(', ')}`,
+        details: isCreate ? `Criada nova quest ao atualizar: ${updated.title}` : `Campos: ${Object.keys(updates).join(', ')}`,
       });
 
       return updated;

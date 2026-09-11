@@ -136,6 +136,12 @@ export interface Relationship {
   importantHistory: string[];
 }
 
+export interface RelationshipUpdates extends Partial<Relationship> {
+  trustChange?: number;
+  hostilityChange?: number;
+  familiarityChange?: number;
+}
+
 /**
  * 6. Inventory: Itens possuídos por personagens ou armazenados em locais
  */
@@ -230,6 +236,10 @@ export interface IPersistentMemoryStore {
   // Snapshot / Snapshot storage
   getSnapshot(campaignId: string): Promise<CampaignMemorySnapshot | null>;
   saveSnapshot(snapshot: CampaignMemorySnapshot): Promise<void>;
+  mutateSnapshot<TResult = CampaignMemorySnapshot>(
+    campaignId: string,
+    mutator: (snapshot: CampaignMemorySnapshot) => Promise<TResult> | TResult
+  ): Promise<TResult>;
   clearSnapshot(campaignId: string): Promise<void>;
 
   // Mensagens do chat (armazenadas separadamente da memória estruturada)
