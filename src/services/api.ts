@@ -129,16 +129,55 @@ export class ApiError extends Error {
   }
 }
 
-async function fetchWithRetry(url: string, options: RequestInit = {}, maxRetries = 2, delayMs = 500): Promise<Response> {
+export function generateIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `idem_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+}
+
+export async function fetchWithRetry(
+  url: string,
+  options: RequestInit = {},
+  maxRetries = 2,
+  delayMs = 500
+): Promise<Response> {
+  const method = (options.method || 'GET').toUpperCase();
+  const isSafeMethod = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+
+  // Verifica se o cabeçalho Idempotency-Key foi fornecido
+  let hasIdempotencyKey = false;
+  if (options.headers) {
+    if (options.headers instanceof Headers) {
+      hasIdempotencyKey = Boolean(options.headers.get('Idempotency-Key') || options.headers.get('idempotency-key'));
+    } else if (Array.isArray(options.headers)) {
+      hasIdempotencyKey = options.headers.some(
+        ([k, v]) => k.toLowerCase() === 'idempotency-key' && Boolean(v && String(v).trim().length > 0)
+      );
+    } else {
+      const record = options.headers as Record<string, string>;
+      for (const k of Object.keys(record)) {
+        if (k.toLowerCase() === 'idempotency-key' && Boolean(record[k] && String(record[k]).trim().length > 0)) {
+          hasIdempotencyKey = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Operações mutáveis (POST, PUT, DELETE, PATCH) SÓ podem ser retentadas na rede se possuírem chave de idempotência válida.
+  // Se não possuírem chave de idempotência, não há garantia contra duplicação no backend, logo falham imediatamente na primeira tentativa.
+  const effectiveMaxRetries = (isSafeMethod || hasIdempotencyKey) ? maxRetries : 1;
+
   let attempt = 0;
   let delay = delayMs;
 
-  while (attempt < maxRetries) {
+  while (attempt < effectiveMaxRetries) {
     attempt++;
     try {
       return await fetch(url, options);
     } catch (err: unknown) {
-      if (attempt >= maxRetries) {
+      if (attempt >= effectiveMaxRetries) {
         const message = (err as Error)?.message || 'Falha de conexão com o servidor.';
         throw new ApiError(message, 'NETWORK_ERROR');
       }
@@ -290,10 +329,14 @@ export const api = {
     return result.data;
   },
 
-  async startNewCampaign(payload: NewCampaignPayload = {}): Promise<NewCampaignResponse['data']> {
+  async startNewCampaign(payload: NewCampaignPayload = {}, customIdempotencyKey?: string): Promise<NewCampaignResponse['data']> {
+    const idempotencyKey = customIdempotencyKey || generateIdempotencyKey();
     const res = await fetchWithRetry('/api/campaign/new', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
       body: JSON.stringify(payload),
     });
     const result = await handleResponse<NewCampaignResponse>(res);
@@ -312,18 +355,26 @@ export const api = {
     return result.data;
   },
 
-  async renameCampaign(campaignId: string, title: string): Promise<void> {
+  async renameCampaign(campaignId: string, title: string, customIdempotencyKey?: string): Promise<void> {
+    const idempotencyKey = customIdempotencyKey || generateIdempotencyKey();
     const res = await fetchWithRetry(`/api/campaign/${campaignId}/title`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
       body: JSON.stringify({ title }),
     });
     await handleResponse<{success: boolean}>(res);
   },
 
-  async deleteCampaign(campaignId: string): Promise<void> {
+  async deleteCampaign(campaignId: string, customIdempotencyKey?: string): Promise<void> {
+    const idempotencyKey = customIdempotencyKey || generateIdempotencyKey();
     const res = await fetchWithRetry(`/api/campaign/${campaignId}`, {
       method: 'DELETE',
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
     });
     await handleResponse<{success: boolean}>(res);
   },
@@ -342,10 +393,14 @@ export const api = {
     return result?.data || [];
   },
 
-  async sendMessage(campaignId: string, message: string): Promise<SendMessageResponse['data']> {
+  async sendMessage(campaignId: string, message: string, customIdempotencyKey?: string): Promise<SendMessageResponse['data']> {
+    const idempotencyKey = customIdempotencyKey || generateIdempotencyKey();
     const res = await fetchWithRetry('/api/message', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
       body: JSON.stringify({ campaignId, message }),
     });
     const result = await handleResponse<SendMessageResponse>(res);
@@ -355,10 +410,14 @@ export const api = {
     return result.data;
   },
 
-  async retryLastAction(campaignId: string): Promise<SendMessageResponse['data']> {
+  async retryLastAction(campaignId: string, customIdempotencyKey?: string): Promise<SendMessageResponse['data']> {
+    const idempotencyKey = customIdempotencyKey || generateIdempotencyKey();
     const res = await fetchWithRetry('/api/message/retry', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
       body: JSON.stringify({ campaignId }),
     });
     const result = await handleResponse<SendMessageResponse>(res);
@@ -368,10 +427,14 @@ export const api = {
     return result.data;
   },
 
-  async editLastAction(campaignId: string, message: string): Promise<SendMessageResponse['data']> {
+  async editLastAction(campaignId: string, message: string, customIdempotencyKey?: string): Promise<SendMessageResponse['data']> {
+    const idempotencyKey = customIdempotencyKey || generateIdempotencyKey();
     const res = await fetchWithRetry('/api/message/edit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
       body: JSON.stringify({ campaignId, message }),
     });
     const result = await handleResponse<SendMessageResponse>(res);
@@ -393,9 +456,13 @@ export const api = {
     return result?.data || [];
   },
 
-  async clearMemoryLogs(campaignId: string) {
+  async clearMemoryLogs(campaignId: string, customIdempotencyKey?: string) {
+    const idempotencyKey = customIdempotencyKey || generateIdempotencyKey();
     const res = await fetchWithRetry(`/api/campaign/${campaignId}/memory/logs/clear`, {
       method: 'POST',
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
     });
     return await handleResponse<{ success: boolean }>(res);
   },

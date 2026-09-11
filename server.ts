@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { gameEngine } from './server/engine/gameEngine';
 import { NarratorError } from './server/engine/narrator/narratorService';
+import { withIdempotency } from './server/engine/idempotency/idempotencyService';
 
 dotenv.config();
 
@@ -40,16 +41,21 @@ app.get('/api/status', (req: Request, res: Response) => {
 
 // 2. Iniciar Nova Campanha (Nova Sessão / Reset)
 app.post('/api/campaign/new', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const result = await gameEngine.startNewCampaign(req.body || {});
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (error: unknown) {
-    next(error);
-  }
+  await withIdempotency(req, res, next, {
+    route: '/api/campaign/new',
+    getScope: () => 'campaign_creation',
+    getPayload: (r) => r.body || {},
+    execute: async () => {
+      const result = await gameEngine.startNewCampaign(req.body || {});
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          data: result,
+        },
+      };
+    },
+  });
 });
 
 // 2.1. Listar Todas as Campanhas Salvas (Histórico)
@@ -61,36 +67,46 @@ app.get('/api/campaigns', (req: Request, res: Response) => {
   });
 });
 
-app.put('/api/campaign/:id/title', (req: Request, res: Response) => {
-  try {
-    const campaignId = req.params.id;
-    const { title } = req.body;
-    
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      res.status(400).json({ success: false, error: 'Título inválido' });
-      return;
-    }
-    
-    gameEngine.gameStateManager.updateCampaignFoundation(campaignId, { title: title.trim() });
-    
-    res.json({
-      success: true
-    });
-  } catch (error: any) {
-    console.error('Error updating campaign title:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
+app.put('/api/campaign/:id/title', async (req: Request, res: Response, next: NextFunction) => {
+  await withIdempotency(req, res, next, {
+    route: '/api/campaign/:id/title',
+    getScope: (r) => r.params.id,
+    getPayload: (r) => ({ title: r.body?.title }),
+    execute: async () => {
+      const campaignId = req.params.id;
+      const { title } = req.body;
+      
+      if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        return {
+          statusCode: 400,
+          body: { success: false, error: 'Título inválido' },
+        };
+      }
+      
+      gameEngine.gameStateManager.updateCampaignFoundation(campaignId, { title: title.trim() });
+      
+      return {
+        statusCode: 200,
+        body: { success: true },
+      };
+    },
+  });
 });
 
-app.delete('/api/campaign/:id', async (req: Request, res: Response) => {
-  try {
-    const campaignId = req.params.id;
-    await gameEngine.deleteCampaign(campaignId);
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error('Error deleting campaign:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
+app.delete('/api/campaign/:id', async (req: Request, res: Response, next: NextFunction) => {
+  await withIdempotency(req, res, next, {
+    route: '/api/campaign/:id',
+    getScope: (r) => r.params.id,
+    getPayload: () => ({}),
+    execute: async () => {
+      const campaignId = req.params.id;
+      await gameEngine.deleteCampaign(campaignId);
+      return {
+        statusCode: 200,
+        body: { success: true },
+      };
+    },
+  });
 });
 
 // 3. Obter Detalhes da Campanha Atual
@@ -158,11 +174,22 @@ app.get('/api/campaign/:id/memory/logs', (req: Request, res: Response) => {
 });
 
 // 4.2. Limpar Logs de Auditoria
-app.post('/api/campaign/:id/memory/logs/clear', (req: Request, res: Response) => {
-  gameEngine.memoryManager.clearLogs();
-  res.json({
-    success: true,
-    message: 'Logs limpos com sucesso.',
+app.post('/api/campaign/:id/memory/logs/clear', async (req: Request, res: Response, next: NextFunction) => {
+  const campaignId = req.params.id;
+  await withIdempotency(req, res, next, {
+    route: '/api/campaign/:id/memory/logs/clear',
+    getScope: () => campaignId,
+    getPayload: () => ({ campaignId }),
+    execute: async () => {
+      gameEngine.memoryManager.clearLogs();
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          message: 'Logs limpos com sucesso.',
+        },
+      };
+    },
   });
 });
 
@@ -197,80 +224,111 @@ app.get('/api/campaign/:id/context', async (req: Request, res: Response, next: N
 
 // 6. Enviar Mensagem / Ação do Jogador
 app.post('/api/message', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { campaignId, message } = req.body;
+  const rawCampaignId = req.body?.campaignId;
+  const targetCampaignId = (rawCampaignId && typeof rawCampaignId === 'string' && rawCampaignId.trim().length > 0)
+    ? rawCampaignId.trim()
+    : 'session_main';
 
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'A mensagem do jogador é obrigatória.',
-        code: 'INVALID_INPUT',
-      });
-      return;
-    }
+  await withIdempotency(req, res, next, {
+    route: '/api/message',
+    getScope: () => targetCampaignId,
+    getPayload: (r) => ({
+      campaignId: targetCampaignId,
+      message: typeof r.body?.message === 'string' ? r.body.message.trim() : '',
+    }),
+    execute: async () => {
+      const { message } = req.body;
 
-    const targetCampaignId = (campaignId && typeof campaignId === 'string' && campaignId.trim().length > 0)
-      ? campaignId.trim()
-      : 'session_main';
+      if (!message || typeof message !== 'string' || message.trim().length === 0) {
+        return {
+          statusCode: 400,
+          body: {
+            success: false,
+            error: 'A mensagem do jogador é obrigatória.',
+            code: 'INVALID_INPUT',
+          },
+        };
+      }
 
-    const output = await gameEngine.processPlayerAction(targetCampaignId, message.trim());
+      const output = await gameEngine.processPlayerAction(targetCampaignId, message.trim());
 
-    res.json({
-      success: true,
-      data: output,
-    });
-  } catch (error: unknown) {
-    next(error);
-  }
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          data: output,
+        },
+      };
+    },
+  });
 });
 
 // 6.5. Retry da última ação
 app.post('/api/message/retry', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { campaignId } = req.body;
+  const rawCampaignId = req.body?.campaignId;
+  const targetCampaignId = (rawCampaignId && typeof rawCampaignId === 'string' && rawCampaignId.trim().length > 0)
+    ? rawCampaignId.trim()
+    : 'session_main';
 
-    const targetCampaignId = (campaignId && typeof campaignId === 'string' && campaignId.trim().length > 0)
-      ? campaignId.trim()
-      : 'session_main';
+  await withIdempotency(req, res, next, {
+    route: '/api/message/retry',
+    getScope: () => targetCampaignId,
+    getPayload: () => ({
+      campaignId: targetCampaignId,
+    }),
+    execute: async () => {
+      const output = await gameEngine.retryLastPlayerAction(targetCampaignId);
 
-    const output = await gameEngine.retryLastPlayerAction(targetCampaignId);
-
-    res.json({
-      success: true,
-      data: output,
-    });
-  } catch (error: unknown) {
-    next(error);
-  }
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          data: output,
+        },
+      };
+    },
+  });
 });
 
 // 6.6. Editar última ação do jogador
 app.post('/api/message/edit', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { campaignId, message } = req.body;
+  const rawCampaignId = req.body?.campaignId;
+  const targetCampaignId = (rawCampaignId && typeof rawCampaignId === 'string' && rawCampaignId.trim().length > 0)
+    ? rawCampaignId.trim()
+    : 'session_main';
 
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        error: 'A mensagem do jogador é obrigatória.',
-        code: 'INVALID_INPUT',
-      });
-      return;
-    }
+  await withIdempotency(req, res, next, {
+    route: '/api/message/edit',
+    getScope: () => targetCampaignId,
+    getPayload: (r) => ({
+      campaignId: targetCampaignId,
+      message: typeof r.body?.message === 'string' ? r.body.message.trim() : '',
+    }),
+    execute: async () => {
+      const { message } = req.body;
 
-    const targetCampaignId = (campaignId && typeof campaignId === 'string' && campaignId.trim().length > 0)
-      ? campaignId.trim()
-      : 'session_main';
+      if (!message || typeof message !== 'string' || message.trim().length === 0) {
+        return {
+          statusCode: 400,
+          body: {
+            success: false,
+            error: 'A mensagem do jogador é obrigatória.',
+            code: 'INVALID_INPUT',
+          },
+        };
+      }
 
-    const output = await gameEngine.editLastPlayerAction(targetCampaignId, message.trim());
+      const output = await gameEngine.editLastPlayerAction(targetCampaignId, message.trim());
 
-    res.json({
-      success: true,
-      data: output,
-    });
-  } catch (error: unknown) {
-    next(error);
-  }
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          data: output,
+        },
+      };
+    },
+  });
 });
 
 // 7. Gerar Cenários (Sem criar campaignId)
