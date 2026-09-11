@@ -21,6 +21,13 @@ import {
  * - Salva mensagens de chat separadamente das estruturas de memória
  * - Garante persistência determinística mesmo após reinicialização do servidor Node
  */
+function cloneSnapshot(snapshot: CampaignMemorySnapshot): CampaignMemorySnapshot {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(snapshot);
+  }
+  return JSON.parse(JSON.stringify(snapshot));
+}
+
 export class FilePersistentMemoryStore implements IPersistentMemoryStore {
   private dataDir: string;
   private isInitialized = false;
@@ -72,9 +79,9 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
   async getSnapshot(campaignId: string): Promise<CampaignMemorySnapshot | null> {
     await this.ensureInitialized();
 
-    // 1. Verifica cache em memória
+    // 1. Verifica cache em memória (retorna cópia destacada profunda para isolamento total)
     if (this.snapshotCache.has(campaignId)) {
-      return this.snapshotCache.get(campaignId)!;
+      return cloneSnapshot(this.snapshotCache.get(campaignId)!);
     }
 
     // 2. Tenta carregar do arquivo em disco
@@ -82,8 +89,8 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       const snapshot: CampaignMemorySnapshot = JSON.parse(data);
-      this.snapshotCache.set(campaignId, snapshot);
-      return snapshot;
+      this.snapshotCache.set(campaignId, cloneSnapshot(snapshot));
+      return cloneSnapshot(snapshot);
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
         return null;
@@ -97,32 +104,58 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     await this.ensureInitialized();
     const campaignId = snapshot.campaign.campaignId;
 
-    // Atualiza cache em memória
-    snapshot.updatedAt = Date.now();
-    this.snapshotCache.set(campaignId, snapshot);
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      // 1. Constrói cópia de trabalho isolada e carimba data de atualização
+      const workingCopy = cloneSnapshot(snapshot);
+      workingCopy.updatedAt = Date.now();
 
-    // Escreve no disco de forma assíncrona e segura
-    const filePath = this.getMemoryFilePath(campaignId);
-    try {
-      const serialized = JSON.stringify(snapshot, null, 2);
-      await fs.writeFile(filePath, serialized, 'utf-8');
-    } catch (err) {
-      console.error(`[FilePersistentMemoryStore] Falha ao persistir snapshot ${campaignId}:`, err);
-    }
+      // 2. Caminhos do arquivo temporário e final
+      const filePath = this.getMemoryFilePath(campaignId);
+      const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const serialized = JSON.stringify(workingCopy, null, 2);
+
+      try {
+        // 3. Escreve no arquivo temporário
+        await fs.writeFile(tempPath, serialized, 'utf-8');
+        // 4. Renomeia atomicamente
+        await fs.rename(tempPath, filePath);
+      } catch (err) {
+        // Limpeza segura do temporário se gerado
+        try {
+          await fs.unlink(tempPath);
+        } catch {
+          // ignora se o temporário não existia
+        }
+        console.error(`[FilePersistentMemoryStore] Falha ao persistir snapshot ${campaignId}:`, err);
+        // O cache NÃO é alterado em falha. A última versão confirmada permanece intacta.
+        throw err;
+      }
+
+      // 5. Atualização do cache somente após confirmação da persistência em disco
+      this.snapshotCache.set(campaignId, cloneSnapshot(workingCopy));
+    });
   }
 
   async clearSnapshot(campaignId: string): Promise<void> {
     await this.ensureInitialized();
-    this.snapshotCache.delete(campaignId);
 
-    const filePath = this.getMemoryFilePath(campaignId);
-    try {
-      await fs.unlink(filePath);
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error(`[FilePersistentMemoryStore] Erro ao deletar snapshot ${campaignId}:`, err);
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      const filePath = this.getMemoryFilePath(campaignId);
+      try {
+        await fs.unlink(filePath);
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          // ENOENT pode ser tratado como estado já removido
+        } else {
+          // Qualquer outro erro de unlink deve ser propagado e o cache anterior deve continuar disponível
+          console.error(`[FilePersistentMemoryStore] Erro ao deletar snapshot ${campaignId}:`, err);
+          throw err;
+        }
       }
-    }
+
+      // Somente depois de confirmada a remoção no disco, remove do cache
+      this.snapshotCache.delete(campaignId);
+    });
   }
 
   private async loadMessagesFromDisk(campaignId: string): Promise<ChatMessage[]> {
