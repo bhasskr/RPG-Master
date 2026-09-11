@@ -28,8 +28,24 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
   private snapshotCache: Map<string, CampaignMemorySnapshot> = new Map();
   private messagesCache: Map<string, ChatMessage[]> = new Map();
 
+  // Fila de escrita para coordenar operações no mesmo arquivo de mensagens
+  private writeQueues: Map<string, Promise<any>> = new Map();
+
   constructor(dataDir?: string) {
     this.dataDir = dataDir || path.join(process.cwd(), 'data', 'rpg_memory');
+  }
+
+  private async executeWithCampaignWriteLock<T>(campaignId: string, task: () => Promise<T>): Promise<T> {
+    const currentQueue = this.writeQueues.get(campaignId) || Promise.resolve();
+    
+    const nextPromise = currentQueue
+      .catch(() => {})
+      .then(async () => {
+        return await task();
+      });
+
+    this.writeQueues.set(campaignId, nextPromise);
+    return await nextPromise;
   }
 
   private async ensureInitialized(): Promise<void> {
@@ -108,43 +124,59 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     }
   }
 
+  private async loadMessagesFromDisk(campaignId: string): Promise<ChatMessage[]> {
+    const filePath = this.getMessagesFilePath(campaignId);
+    try {
+      const data = await fs.readFile(filePath, 'utf-8');
+      const parsed: ChatMessage[] = JSON.parse(data);
+      this.messagesCache.set(campaignId, parsed);
+      return parsed;
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        console.warn(`[FilePersistentMemoryStore] Aviso ao carregar chat de ${campaignId}:`, err);
+      }
+      this.messagesCache.set(campaignId, []);
+      return [];
+    }
+  }
+
   async saveMessage(campaignId: string, message: ChatMessage): Promise<void> {
     await this.ensureInitialized();
 
-    // Carrega mensagens para o cache se ainda não estiver carregado
-    if (!this.messagesCache.has(campaignId)) {
-      await this.getMessages(campaignId, 1000);
-    }
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      if (!this.messagesCache.has(campaignId)) {
+        await this.loadMessagesFromDisk(campaignId);
+      }
 
-    const messages = this.messagesCache.get(campaignId) || [];
-    messages.push(message);
-    this.messagesCache.set(campaignId, messages);
+      const currentMessages = this.messagesCache.get(campaignId) || [];
+      const updatedMessages = [...currentMessages, message];
 
-    // Persiste arquivo de chat no disco
-    const filePath = this.getMessagesFilePath(campaignId);
-    try {
-      const serialized = JSON.stringify(messages, null, 2);
-      await fs.writeFile(filePath, serialized, 'utf-8');
-    } catch (err) {
-      console.error(`[FilePersistentMemoryStore] Falha ao persistir mensagens de ${campaignId}:`, err);
-    }
+      const filePath = this.getMessagesFilePath(campaignId);
+      const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const serialized = JSON.stringify(updatedMessages, null, 2);
+
+      try {
+        await fs.writeFile(tempPath, serialized, 'utf-8');
+        await fs.rename(tempPath, filePath);
+      } catch (err) {
+        try {
+          await fs.unlink(tempPath);
+        } catch {
+          // ignore cleanup error
+        }
+        console.error(`[FilePersistentMemoryStore] Falha ao persistir mensagem de ${campaignId}:`, err);
+        throw err;
+      }
+
+      this.messagesCache.set(campaignId, updatedMessages);
+    });
   }
 
   async getMessages(campaignId: string, limit: number = 50): Promise<ChatMessage[]> {
     await this.ensureInitialized();
 
     if (!this.messagesCache.has(campaignId)) {
-      const filePath = this.getMessagesFilePath(campaignId);
-      try {
-        const data = await fs.readFile(filePath, 'utf-8');
-        const parsed: ChatMessage[] = JSON.parse(data);
-        this.messagesCache.set(campaignId, parsed);
-      } catch (err: unknown) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-          console.warn(`[FilePersistentMemoryStore] Aviso ao carregar chat de ${campaignId}:`, err);
-        }
-        this.messagesCache.set(campaignId, []);
-      }
+      await this.loadMessagesFromDisk(campaignId);
     }
 
     const list = this.messagesCache.get(campaignId) || [];
@@ -156,47 +188,122 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
 
   async updateMessage(campaignId: string, messageId: string, updates: Partial<ChatMessage>): Promise<boolean> {
     await this.ensureInitialized();
-    if (!this.messagesCache.has(campaignId)) {
-      await this.getMessages(campaignId, 1000);
-    }
-    const messages = this.messagesCache.get(campaignId) || [];
-    const index = messages.findIndex(m => m.id === messageId);
-    if (index !== -1) {
-      const mergedMetadata = { ...messages[index].metadata, ...updates.metadata };
-      messages[index] = { ...messages[index], ...updates, metadata: mergedMetadata };
-      this.messagesCache.set(campaignId, messages);
-      const filePath = this.getMessagesFilePath(campaignId);
-      try {
-        const serialized = JSON.stringify(messages, null, 2);
-        await fs.writeFile(filePath, serialized, 'utf-8');
-        return true;
-      } catch (err) {
-        console.error(`[FilePersistentMemoryStore] Falha ao atualizar mensagem:`, err);
+
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      if (!this.messagesCache.has(campaignId)) {
+        await this.loadMessagesFromDisk(campaignId);
       }
-    }
-    return false;
+
+      const currentMessages = this.messagesCache.get(campaignId) || [];
+      const index = currentMessages.findIndex((m) => m.id === messageId);
+      if (index === -1) return false;
+
+      const mergedMetadata = { ...currentMessages[index].metadata, ...updates.metadata };
+      const updatedMessages = [...currentMessages];
+      updatedMessages[index] = {
+        ...currentMessages[index],
+        ...updates,
+        metadata: mergedMetadata,
+      };
+
+      const filePath = this.getMessagesFilePath(campaignId);
+      const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const serialized = JSON.stringify(updatedMessages, null, 2);
+
+      try {
+        await fs.writeFile(tempPath, serialized, 'utf-8');
+        await fs.rename(tempPath, filePath);
+      } catch (err) {
+        try {
+          await fs.unlink(tempPath);
+        } catch {
+          // ignore cleanup error
+        }
+        console.error(`[FilePersistentMemoryStore] Falha ao atualizar mensagem de ${campaignId}:`, err);
+        throw err;
+      }
+
+      this.messagesCache.set(campaignId, updatedMessages);
+      return true;
+    });
+  }
+
+  async replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage): Promise<ChatMessage> {
+    await this.ensureInitialized();
+
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      if (!this.messagesCache.has(campaignId)) {
+        await this.loadMessagesFromDisk(campaignId);
+      }
+
+      const currentMessages = this.messagesCache.get(campaignId) || [];
+      const index = currentMessages.findIndex((m) => m.id === messageId);
+      if (index === -1) {
+        throw new Error(`Mensagem ${messageId} não encontrada para substituição na campanha ${campaignId}.`);
+      }
+
+      // Cria cópia sem mutar o array em cache antes da confirmação em disco
+      const updatedMessages = [...currentMessages];
+      updatedMessages[index] = { ...newMessage };
+
+      const filePath = this.getMessagesFilePath(campaignId);
+      const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const serialized = JSON.stringify(updatedMessages, null, 2);
+
+      try {
+        await fs.writeFile(tempPath, serialized, 'utf-8');
+        await fs.rename(tempPath, filePath);
+      } catch (err) {
+        try {
+          await fs.unlink(tempPath);
+        } catch {
+          // ignore cleanup error
+        }
+        console.error(`[FilePersistentMemoryStore] Falha ao persistir substituição de mensagem em ${campaignId}:`, err);
+        // O cache NÃO foi alterado!
+        throw err;
+      }
+
+      // Somente após gravação confirmada no disco, atualiza o cache
+      this.messagesCache.set(campaignId, updatedMessages);
+      return updatedMessages[index];
+    });
   }
 
   async deleteMessage(campaignId: string, messageId: string): Promise<boolean> {
     await this.ensureInitialized();
-    if (!this.messagesCache.has(campaignId)) {
-      await this.getMessages(campaignId, 1000);
-    }
-    const messages = this.messagesCache.get(campaignId) || [];
-    const index = messages.findIndex(m => m.id === messageId);
-    if (index !== -1) {
-      messages.splice(index, 1);
-      this.messagesCache.set(campaignId, messages);
-      const filePath = this.getMessagesFilePath(campaignId);
-      try {
-        const serialized = JSON.stringify(messages, null, 2);
-        await fs.writeFile(filePath, serialized, 'utf-8');
-        return true;
-      } catch (err) {
-        console.error(`[FilePersistentMemoryStore] Falha ao deletar mensagem:`, err);
+
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      if (!this.messagesCache.has(campaignId)) {
+        await this.loadMessagesFromDisk(campaignId);
       }
-    }
-    return false;
+
+      const currentMessages = this.messagesCache.get(campaignId) || [];
+      const index = currentMessages.findIndex((m) => m.id === messageId);
+      if (index === -1) return false;
+
+      const updatedMessages = currentMessages.filter((m) => m.id !== messageId);
+
+      const filePath = this.getMessagesFilePath(campaignId);
+      const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const serialized = JSON.stringify(updatedMessages, null, 2);
+
+      try {
+        await fs.writeFile(tempPath, serialized, 'utf-8');
+        await fs.rename(tempPath, filePath);
+      } catch (err) {
+        try {
+          await fs.unlink(tempPath);
+        } catch {
+          // ignore cleanup error
+        }
+        console.error(`[FilePersistentMemoryStore] Falha ao deletar mensagem de ${campaignId}:`, err);
+        throw err;
+      }
+
+      this.messagesCache.set(campaignId, updatedMessages);
+      return true;
+    });
   }
 
   async clearMessages(campaignId: string): Promise<void> {

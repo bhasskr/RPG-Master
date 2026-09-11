@@ -251,8 +251,11 @@ export class GameEngine {
     const isOnlyOpening = recentMessages.length === 1 && recentMessages[0].role === 'assistant' && (recentMessages[0].turn === 0 || !recentMessages[0].turn);
     if (isOnlyOpening || (recentMessages.length === 1 && recentMessages[0].role === 'assistant')) {
       const openingMessage = recentMessages[0];
-      await this.memoryManager.deleteMessage(campaignId, openingMessage.id);
+      const initialOpeningId = openingMessage.id;
+      const initialOpeningContent = openingMessage.content;
+      const initialOpeningTurn = openingMessage.turn || 0;
 
+      // 1. NÃO remover a mensagem de abertura anterior antes da geração
       const systemInstructions = getSystemInstructions(
         gameState.foundation.rulesOfUniverse,
         gameState.foundation.tone || gameState.foundation.masterTone,
@@ -263,32 +266,50 @@ export class GameEngine {
           focus: gameState.foundation.masterFocus,
         }
       );
-      let openingMessageText = '';
 
-      try {
-        const narratorResponse = await this.narratorService.generateOpeningMessage({
-          campaignId,
-          memoryManager: this.memoryManager,
-          gameStateManager: this.gameStateManager,
-          systemInstructions,
-          campaignFoundation: gameState.foundation,
-          worldState: gameState.worldState,
-          player: gameState.player,
-          currentUserInput: '',
-          recentMessages: [],
-        });
-        openingMessageText = narratorResponse.text;
-      } catch (error) {
-        console.error('[GameEngine] Falha ao regenerar abertura inicial:', error);
-        openingMessageText = `A aventura começa em ${gameState.foundation.startingLocation || 'um local misterioso'}. O que você faz?`;
+      // 2. Chamar Narrador (se falhar, o erro propaga e a abertura anterior fica intacta)
+      const narratorResponse = await this.narratorService.generateOpeningMessage({
+        campaignId,
+        memoryManager: this.memoryManager,
+        gameStateManager: this.gameStateManager,
+        systemInstructions,
+        campaignFoundation: gameState.foundation,
+        worldState: gameState.worldState,
+        player: gameState.player,
+        currentUserInput: '',
+        recentMessages: [],
+      });
+
+      if (!narratorResponse || !narratorResponse.text) {
+        throw new Error('Falha ao gerar nova mensagem de abertura.');
       }
 
-      const newOpeningMessage = await this.memoryManager.recordMessage(
+      // 3. Conferir se houve conflito antes da substituição
+      const freshMessages = await this.memoryManager.getRecentMessages(campaignId, 12);
+      const stillOpening = freshMessages.find((m) => m.id === initialOpeningId);
+      if (!stillOpening || stillOpening.content !== initialOpeningContent || (stillOpening.turn || 0) !== initialOpeningTurn || freshMessages.length !== 1) {
+        throw new Error('Conflito detectado: a mensagem de abertura foi alterada ou o histórico avançou durante a geração.');
+      }
+
+      // 4. Substituir atomicamente preservando o ID original
+      const replacementMessage: ChatMessage = {
+        id: initialOpeningId,
+        role: 'assistant',
+        content: narratorResponse.text,
+        turn: 0,
+        timestamp: Date.now(),
+        metadata: {
+          ...openingMessage.metadata,
+          location: gameState.worldState.currentLocation,
+          diceRolls: narratorResponse.diceRolls || [],
+          executedTools: narratorResponse.executedTools || [],
+        },
+      };
+
+      const persistedOpeningMessage = await this.memoryManager.replaceMessage(
         campaignId,
-        'assistant',
-        openingMessageText,
-        0,
-        { location: gameState.worldState.currentLocation }
+        initialOpeningId,
+        replacementMessage
       );
 
       return {
@@ -299,7 +320,7 @@ export class GameEngine {
           turn: 0,
           timestamp: Date.now(),
         },
-        masterMessage: newOpeningMessage,
+        masterMessage: persistedOpeningMessage,
         gameState,
         turn: 0,
         campaignId,
@@ -309,13 +330,13 @@ export class GameEngine {
     // Caso 2: Turno com ação do jogador
     const lastMessage = recentMessages[recentMessages.length - 1];
     let prevUserMessage: ChatMessage | undefined;
-    let assistantMessageToDelete: ChatMessage | null = null;
+    let assistantMessageToReplace: ChatMessage | null = null;
 
     if (lastMessage.role === 'assistant') {
       if (lastMessage.metadata?.hasMutations) {
         throw new Error('Não é possível repetir este turno. Mudanças de estado irreversíveis já foram consolidadas pelo Game Engine.');
       }
-      assistantMessageToDelete = lastMessage;
+      assistantMessageToReplace = lastMessage;
       // Encontrar a mensagem do usuário correspondente
       for (let i = recentMessages.length - 2; i >= 0; i--) {
         if (recentMessages[i].role === 'user') {
@@ -332,14 +353,20 @@ export class GameEngine {
       throw new Error('Nenhuma ação anterior do jogador foi encontrada para repetir.');
     }
 
-    if (assistantMessageToDelete) {
-      await this.memoryManager.deleteMessage(campaignId, assistantMessageToDelete.id);
-    }
-    
+    // 1. Guardar snapshots do estado inicial para verificação estrita de conflito
+    const initialAssistantId = assistantMessageToReplace ? assistantMessageToReplace.id : null;
+    const initialAssistantContent = assistantMessageToReplace ? assistantMessageToReplace.content : null;
+    const initialAssistantTurn = assistantMessageToReplace ? assistantMessageToReplace.turn : null;
+    const initialUserId = prevUserMessage.id;
+    const initialUserContent = prevUserMessage.content;
     const playerActionText = prevUserMessage.content;
     const currentTurn = prevUserMessage.turn || gameState.turn || 1;
 
-    // Use the same context gathering as processPlayerAction, but WITHOUT incrementing turn or recording the user message again
+    // 2. Excluir a resposta substituída apenas da cópia temporária do contexto enviada ao Narrador
+    const contextRecentMessages = assistantMessageToReplace
+      ? recentMessages.filter((m) => m.id !== assistantMessageToReplace!.id)
+      : [...recentMessages];
+
     const relevantContext = await this.memoryManager.getRelevantContext({
       campaignId,
       currentLocation: gameState.worldState.currentLocation,
@@ -349,8 +376,6 @@ export class GameEngine {
       targetCharacter: 'narrator',
     });
 
-    // Get recent messages again (without the deleted master message)
-    const newRecentMessages = await this.memoryManager.getRecentMessages(campaignId, 12);
     const systemInstructions = getSystemInstructions(
       gameState.foundation.rulesOfUniverse,
       gameState.foundation.tone || gameState.foundation.masterTone,
@@ -362,10 +387,10 @@ export class GameEngine {
       }
     );
 
-    // Populate turnExecutionCache from the previous assistant message
+    // Preservar cache de ferramentas da mensagem anterior
     const turnExecutionCache = new Map<string, any>();
-    if (assistantMessageToDelete?.metadata?.executedTools) {
-      for (const tool of assistantMessageToDelete.metadata.executedTools) {
+    if (assistantMessageToReplace?.metadata?.executedTools) {
+      for (const tool of assistantMessageToReplace.metadata.executedTools) {
         if (tool.name && tool.result) {
           const cacheKey = `${tool.name}:${JSON.stringify(tool.args || {}, Object.keys(tool.args || {}).sort())}`;
           turnExecutionCache.set(cacheKey, tool.result);
@@ -373,7 +398,8 @@ export class GameEngine {
       }
     }
 
-    // Call Narrator
+    // 3. Chamar o Narrador para gerar a nova resposta
+    // Se o Narrador falhar, a resposta anterior continua salva e válida no store
     const narratorResponse = await this.narratorService.generateMasterResponse({
       campaignId,
       memoryManager: this.memoryManager,
@@ -387,38 +413,102 @@ export class GameEngine {
       keyInventoryItems: gameState.inventory.items,
       relevantContextOutput: relevantContext,
       relevantContextSummary: relevantContext.formattedSummary,
-      recentMessages: newRecentMessages,
+      recentMessages: contextRecentMessages,
       currentUserInput: playerActionText,
       turnExecutionCache,
     });
 
-    const masterMessage = await this.memoryManager.recordMessage(
-      campaignId,
-      'assistant',
-      narratorResponse.text,
-      currentTurn,
-      { 
-        location: gameState.worldState.currentLocation,
-        diceRolls: narratorResponse.diceRolls,
-        executedTools: narratorResponse.executedTools
-      }
-    );
+    if (!narratorResponse || !narratorResponse.text) {
+      throw new Error('Falha ao gerar resposta do Mestre.');
+    }
 
-    // Memory Extractor analyzes the retried turn asynchronously
+    // 4. Conferir conflitos antes da substituição
+    const freshRecentMessages = await this.memoryManager.getRecentMessages(campaignId, 12);
+    const freshUserMessage = freshRecentMessages.find((m) => m.id === initialUserId);
+    if (!freshUserMessage || freshUserMessage.content !== initialUserContent) {
+      throw new Error('Conflito detectado: a ação do jogador foi alterada ou removida durante a geração.');
+    }
+
+    if (assistantMessageToReplace) {
+      const freshAssistant = freshRecentMessages.find((m) => m.id === initialAssistantId);
+      if (!freshAssistant) {
+        throw new Error('Conflito detectado: a resposta anterior foi removida por outra operação.');
+      }
+      if (freshAssistant.content !== initialAssistantContent || freshAssistant.turn !== initialAssistantTurn) {
+        throw new Error('Conflito detectado: a resposta anterior foi modificada durante a geração.');
+      }
+      if (freshAssistant.metadata?.hasMutations) {
+        throw new Error('Conflito detectado: o estado foi consolidado durante a geração e não pode mais ser repetido.');
+      }
+      const lastFresh = freshRecentMessages[freshRecentMessages.length - 1];
+      if (lastFresh.id !== initialAssistantId) {
+        throw new Error('Conflito detectado: novas mensagens foram inseridas no histórico durante a geração.');
+      }
+    } else {
+      const lastFresh = freshRecentMessages[freshRecentMessages.length - 1];
+      if (lastFresh.id !== initialUserId) {
+        throw new Error('Conflito detectado: uma resposta já foi adicionada ao histórico durante a geração.');
+      }
+    }
+
+    // 5. Preservar metadados autoritativos e D20 resolvidos
+    const preservedDiceRolls = (narratorResponse.diceRolls && narratorResponse.diceRolls.length > 0)
+      ? narratorResponse.diceRolls
+      : (assistantMessageToReplace?.metadata?.diceRolls || []);
+
+    const updatedMetadata = {
+      ...(assistantMessageToReplace?.metadata || {}),
+      location: gameState.worldState.currentLocation,
+      diceRolls: preservedDiceRolls,
+      executedTools: (narratorResponse.executedTools && narratorResponse.executedTools.length > 0)
+        ? narratorResponse.executedTools
+        : (assistantMessageToReplace?.metadata?.executedTools || []),
+    };
+
+    let persistedMasterMessage: ChatMessage;
+
+    if (assistantMessageToReplace) {
+      // Substituição segura preservando ID e posição
+      const replacementMessage: ChatMessage = {
+        id: assistantMessageToReplace.id,
+        role: 'assistant',
+        content: narratorResponse.text,
+        turn: currentTurn,
+        timestamp: Date.now(),
+        metadata: updatedMetadata,
+      };
+
+      persistedMasterMessage = await this.memoryManager.replaceMessage(
+        campaignId,
+        assistantMessageToReplace.id,
+        replacementMessage
+      );
+    } else {
+      // Ação sem resposta anterior: gravar nova mensagem
+      persistedMasterMessage = await this.memoryManager.recordMessage(
+        campaignId,
+        'assistant',
+        narratorResponse.text,
+        currentTurn,
+        updatedMetadata
+      );
+    }
+
+    // 6. Memory Extractor analisa o turno concluído SOMENTE após a substituição bem-sucedida
     this.processPostTurnMemoryExtraction(
       campaignId,
       currentTurn,
       gameState,
       playerActionText,
       narratorResponse,
-      masterMessage.id
+      persistedMasterMessage.id
     ).catch((err) => {
       console.warn(`[GameEngine] Extração de memória falhou no retry do turno ${currentTurn}:`, err);
     });
 
     return {
       playerMessage: prevUserMessage,
-      masterMessage,
+      masterMessage: persistedMasterMessage,
       gameState,
       turn: currentTurn,
       campaignId,

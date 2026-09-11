@@ -53,6 +53,18 @@ export class InMemoryStore implements IPersistentMemoryStore {
     return true;
   }
 
+  async replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage): Promise<ChatMessage> {
+    const list = this.messagesByCampaign.get(campaignId) || [];
+    const index = list.findIndex((m) => m.id === messageId);
+    if (index === -1) {
+      throw new Error(`Mensagem ${messageId} não encontrada para substituição na campanha ${campaignId}.`);
+    }
+    const newList = [...list];
+    newList[index] = { ...newMessage };
+    this.messagesByCampaign.set(campaignId, newList);
+    return newList[index];
+  }
+
   async deleteMessage(campaignId: string, messageId: string): Promise<boolean> {
     const list = this.messagesByCampaign.get(campaignId) || [];
     const initialLen = list.length;

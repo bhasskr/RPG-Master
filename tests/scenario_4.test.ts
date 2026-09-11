@@ -25,9 +25,9 @@ async function runScenario4() {
       {
         characterA: 'Player',
         characterB: 'NPC G',
-        trustDelta: -10,
-        hostilityDelta: +5,
-        familiarityDelta: 0,
+        trustChange: -10,
+        hostilityChange: +5,
+        familiarityChange: 0,
         reason: 'Jogador insultou o NPC levemente, mas não gerou evento.',
       }
     ],

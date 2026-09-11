@@ -1719,6 +1719,36 @@ export class MemoryManager {
     return this.store.updateMessage(campaignId, messageId, updates);
   }
 
+  async replaceMessage(
+    campaignId: string,
+    messageId: string,
+    newMessage: ChatMessage
+  ): Promise<ChatMessage> {
+    try {
+      const replaced = await this.store.replaceMessage(campaignId, messageId, newMessage);
+      this.recordLog({
+        operation: 'UPDATE',
+        functionName: 'replaceMessage',
+        entity: `Message: ${messageId}`,
+        campaignId,
+        status: 'success',
+        details: `Mensagem ${messageId} substituída com sucesso no turno ${newMessage.turn}`,
+      });
+      return replaced;
+    } catch (err: unknown) {
+      const errMsg = (err as Error)?.message || String(err);
+      this.recordLog({
+        operation: 'UPDATE',
+        functionName: 'replaceMessage',
+        entity: `Message: ${messageId}`,
+        campaignId,
+        status: 'error',
+        error: errMsg,
+      });
+      throw err;
+    }
+  }
+
   async deleteMessage(campaignId: string, messageId: string): Promise<boolean> {
     return this.store.deleteMessage(campaignId, messageId);
   }

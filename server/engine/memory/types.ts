@@ -227,6 +227,7 @@ export interface IPersistentMemoryStore {
   saveMessage(campaignId: string, message: ChatMessage): Promise<void>;
   getMessages(campaignId: string, limit?: number): Promise<ChatMessage[]>;
   updateMessage(campaignId: string, messageId: string, updates: Partial<ChatMessage>): Promise<boolean>;
+  replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage): Promise<ChatMessage>;
   deleteMessage(campaignId: string, messageId: string): Promise<boolean>;
   clearMessages(campaignId: string): Promise<void>;
 }
