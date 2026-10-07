@@ -282,10 +282,18 @@ export class MemoryValidator {
       if (newTrust !== currentTrust || newHostility !== currentHostility || newFamiliarity !== currentFamiliarity || relChange.reason) {
         const historyUpdates = relChange.reason ? [relChange.reason] : [];
         const updated = await memoryManager.updateRelationship(campaignId, relChange.characterA, relChange.characterB, {
-          trust: Math.max(-100, Math.min(100, newTrust)),
-          hostility: Math.max(-100, Math.min(100, newHostility)),
-          familiarity: Math.max(0, Math.min(10, newFamiliarity)),
-          importantHistory: existingRel ? [...(existingRel.importantHistory || []), ...historyUpdates] : historyUpdates,
+          // Preservar a intenção: o manager soma e limita sobre o snapshot atual,
+          // dentro de mutateSnapshot. Valor absoluto explícito mantém precedência.
+          ...(relChange.trust !== undefined
+            ? { trust: relChange.trust }
+            : { trustChange: relChange.trustChange || 0 }),
+          ...(relChange.hostility !== undefined
+            ? { hostility: relChange.hostility }
+            : { hostilityChange: relChange.hostilityChange || 0 }),
+          ...(relChange.familiarity !== undefined
+            ? { familiarity: relChange.familiarity }
+            : { familiarityChange: relChange.familiarityChange || 0 }),
+          importantHistory: historyUpdates,
         });
         validated.validRelationships.push(updated);
       }

@@ -1,10 +1,41 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import assert from 'node:assert/strict';
 import { FilePersistentMemoryStore } from '../server/engine/memory/filePersistentStore';
 import { InMemoryStore } from '../server/engine/memory/inMemoryStore';
 import { MemoryManager } from '../server/engine/memory/memoryManager';
 import { CampaignMemorySnapshot } from '../server/engine/memory/types';
+import { MemoryValidator } from '../server/engine/memory/extractor/memoryValidator';
+import { MemoryExtractionResult } from '../server/engine/memory/extractor/types';
+import { SemanticMemoryManager } from '../server/engine/memory/semanticMemory';
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function bounded<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Fila não progrediu')), 5000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
+function extraction(changes: Partial<MemoryExtractionResult>): MemoryExtractionResult {
+  return {
+    events: [], knowledgeChanges: [], relationshipChanges: [], inventoryChanges: [],
+    questChanges: [], npcChanges: [], worldChanges: [], ...changes,
+  };
+}
 
 function createSampleSnapshot(campaignId: string, name: string = 'Campanha Concorrencia'): CampaignMemorySnapshot {
   return {
@@ -35,6 +66,20 @@ async function runAllMemoryConcurrencyTests() {
 
   const testBaseDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'rpg_concurrency_test_'));
   const storeDataDir = path.join(testBaseDir, 'rpg_memory');
+  const originalEmbedding = SemanticMemoryManager.prototype.generateEmbedding;
+  // Mantém formatação/indexação reais; substitui apenas o serviço externo.
+  SemanticMemoryManager.prototype.generateEmbedding = async () => [1, 0];
+
+  async function check(name: string, run: () => Promise<void>) {
+    try {
+      await run();
+      passed++;
+      console.log(`PASSOU: ${name}`);
+    } catch (error) {
+      failed++;
+      console.error(`FALHOU: ${name}`, error);
+    }
+  }
 
   try {
     const fileStore = new FilePersistentMemoryStore(storeDataDir);
@@ -98,30 +143,24 @@ async function runAllMemoryConcurrencyTests() {
       await fileStore.saveSnapshot(createSampleSnapshot(campA));
       await fileStore.saveSnapshot(createSampleSnapshot(campB));
 
-      let order: string[] = [];
-
+      const enteredA = deferred();
+      const releaseA = deferred();
+      let finishedA = false;
       const pA = fileStore.mutateSnapshot(campA, async (snap) => {
-        order.push('A_start');
-        await new Promise((r) => setTimeout(r, 50));
-        order.push('A_end');
+        enteredA.resolve();
+        await releaseA.promise;
+        finishedA = true;
         snap.campaign.name = 'Campanha A Finalizada';
       });
-
-      const pB = fileStore.mutateSnapshot(campB, async (snap) => {
-        // Camp B inicia rapidamente
-        await new Promise((r) => setTimeout(r, 10));
-        order.push('B_start');
-        await new Promise((r) => setTimeout(r, 10));
-        order.push('B_end');
-        snap.campaign.name = 'Campanha B Finalizada';
-      });
-
-      await Promise.all([pA, pB]);
-
-      // B deve conseguir começar e terminar enquanto A ainda está rodando
-      const bFinishedBeforeA = order.indexOf('B_end') < order.indexOf('A_end');
-      if (!bFinishedBeforeA) {
-        throw new Error(`Operações em campanhas distintas foram indevidamente bloqueadas em fila global: ${order.join(', ')}`);
+      try {
+        await bounded(enteredA.promise);
+        await bounded(fileStore.mutateSnapshot(campB, (snap) => {
+          snap.campaign.name = 'Campanha B Finalizada';
+        }));
+        assert.equal(finishedA, false, 'B deve confirmar enquanto A aguarda');
+      } finally {
+        releaseA.resolve();
+        await pA;
       }
 
       console.log('✅ Cenário 2 PASSOU: Campanhas distintas operam em filas separadas e não bloqueiam.');
@@ -224,7 +263,7 @@ async function runAllMemoryConcurrencyTests() {
     try {
       const memoryManager = new MemoryManager(fileStore);
       const campId = 'camp_mm_lost_update_fixed';
-      await memoryManager.createCampaign(campId, 'Campanha Anti Lost Update');
+      await memoryManager.createCampaign({ campaignId: campId, name: 'Campanha Anti Lost Update' });
 
       // Dispara simultaneamente:
       // - 3 NPCs criados
@@ -283,13 +322,211 @@ async function runAllMemoryConcurrencyTests() {
       failed++;
     }
 
+    // Mesmos contratos nos stores File e InMemory, usando manager/validator reais.
+    for (const [label, store] of [
+      ['File', fileStore], ['InMemory', new InMemoryStore()],
+    ] as const) {
+      const manager = new MemoryManager(store);
+      const verifyRestart = async (campaignId: string) => {
+        if (label === 'File') {
+          assert.deepEqual(
+            await new FilePersistentMemoryStore(storeDataDir).getSnapshot(campaignId),
+            // O formato JSON omite propriedades opcionais com valor undefined.
+            JSON.parse(JSON.stringify(await store.getSnapshot(campaignId))),
+          );
+        }
+      };
+
+      await check(`${label}: deltas concorrentes via validator preservam soma e histórico`, async () => {
+        const id = `${label}_validator_deltas`;
+        await manager.updateRelationship(id, 'Player', 'NPC', { trust: 10, hostility: 4, familiarity: 1 });
+        // As duas leituras reais observam a mesma base, sem depender de sleeps.
+        const originalRead = manager.getRelationship.bind(manager);
+        const bothRead = deferred();
+        let reads = 0;
+        manager.getRelationship = async (...args) => {
+          const result = await originalRead(...args);
+          if (++reads === 2) bothRead.resolve();
+          await bounded(bothRead.promise);
+          return result;
+        };
+        try {
+          const results = await Promise.all([2, 3].map((delta) =>
+            MemoryValidator.validateAndApply(id, extraction({ relationshipChanges: [{
+              characterA: 'Player', characterB: 'NPC', trustChange: delta,
+              hostilityChange: delta, familiarityChange: 1, reason: `efeito ${delta}`,
+            }] }), manager, 1),
+          ));
+          assert.ok(results.every((result) => result.validRelationships.length === 1));
+        } finally {
+          manager.getRelationship = originalRead;
+        }
+        const rel = await manager.getRelationship(id, 'Player', 'NPC');
+        assert.equal(rel?.trust, 15);
+        assert.equal(rel?.hostility, 9);
+        assert.equal(rel?.familiarity, 3);
+        assert.deepEqual(new Set(rel?.importantHistory), new Set(['efeito 2', 'efeito 3']));
+        const snapshot = await store.getSnapshot(id);
+        const index = snapshot?.semanticRecords?.find((record) => record.type === 'relationship');
+        assert.equal(index?.text, new SemanticMemoryManager().formatRelationship(rel!));
+        assert.equal('trustChange' in rel!, false, 'Delta não deve virar campo persistido');
+        await verifyRestart(id);
+      });
+
+      await check(`${label}: deltas diretos no manager e campos distintos coexistem`, async () => {
+        const id = `${label}_direct_deltas`;
+        await Promise.all([
+          manager.updateRelationship(id, 'Player', 'NPC', { trustChange: 2 }),
+          manager.updateRelationship(id, 'Player', 'NPC', { trustChange: 3 }),
+          manager.updateRelationship(id, 'Player', 'NPC', { hostilityChange: 4 }),
+        ]);
+        const rel = await manager.getRelationship(id, 'Player', 'NPC');
+        assert.equal(rel?.trust, 5);
+        assert.equal(rel?.hostility, 4);
+        assert.equal((await store.getSnapshot(id))?.relationships.length, 1);
+        await verifyRestart(id);
+      });
+
+      await check(`${label}: validator preserva precedência absoluta, limites e reason isolado`, async () => {
+        const id = `${label}_relationship_semantics`;
+        const apply = (change: MemoryExtractionResult['relationshipChanges'][number]) =>
+          MemoryValidator.validateAndApply(id, extraction({ relationshipChanges: [change] }), manager, 1);
+        await apply({ characterA: 'Player', characterB: 'NPC', trust: 7, trustChange: 90,
+          hostility: -150, hostilityChange: 10, familiarity: 15, familiarityChange: -5 });
+        let rel = await manager.getRelationship(id, 'Player', 'NPC');
+        assert.equal(rel?.trust, 7);
+        assert.equal(rel?.hostility, -100);
+        assert.equal(rel?.familiarity, 10);
+        await apply({ characterA: 'Player', characterB: 'NPC', trustChange: 200,
+          hostilityChange: 300, familiarityChange: -20 });
+        await apply({ characterA: 'Player', characterB: 'NPC', reason: 'histórico apenas' });
+        rel = await manager.getRelationship(id, 'Player', 'NPC');
+        assert.equal(rel?.trust, 100);
+        assert.equal(rel?.hostility, 100);
+        assert.equal(rel?.familiarity, 0);
+        assert.deepEqual(rel?.importantHistory, ['histórico apenas']);
+        const noChange = await apply({ characterA: 'Player', characterB: 'NPC', trustChange: 0 });
+        assert.equal(noChange.validRelationships.length, 0);
+      });
+
+      await check(`${label}: Inventory acumula duas alterações do mesmo item via validator`, async () => {
+        const id = `${label}_inventory`;
+        await manager.updateInventory(id, 'Player', 'Moeda', 10, 'set');
+        await Promise.all([2, 3].map((quantity) => MemoryValidator.validateAndApply(id,
+          extraction({ inventoryChanges: [{ owner: 'Player', item: 'Moeda', action: 'acquired', quantity }] }),
+          manager, 1)));
+        assert.equal((await manager.getInventory(id, 'Player'))[0].quantity, 15);
+        await verifyRestart(id);
+      });
+
+      await check(`${label}: Knowledge une knownBy concorrente sem duplicação via validator`, async () => {
+        const id = `${label}_knowledge`;
+        const fact = 'A chave de prata abre a torre norte';
+        await manager.createKnowledge(id, { id: 'fact', fact, knownBy: ['Player'], isWorldTruth: false });
+        await Promise.all(['Ana', 'Bia'].map((name) => MemoryValidator.validateAndApply(id,
+          extraction({ knowledgeChanges: [{ fact, truthStatus: 'true', knownBy: ['Player', name] }] }),
+          manager, 1)));
+        const snapshot = await store.getSnapshot(id);
+        assert.equal(snapshot?.knowledge.length, 1);
+        assert.deepEqual(snapshot?.knowledge[0].knownBy.slice().sort(), ['Ana', 'Bia', 'Player']);
+        await verifyRestart(id);
+      });
+
+      await check(`${label}: falha do mutador preserva snapshot e libera próxima mutação`, async () => {
+        const id = `${label}_abort`;
+        await manager.createCampaign({ campaignId: id, name: 'Confirmado' });
+        const before = await store.getSnapshot(id);
+        await assert.rejects(store.mutateSnapshot(id, (snapshot) => {
+          snapshot.campaign.name = 'Parcial';
+          snapshot.inventory.push({ owner: 'Player', item: 'Inválido', quantity: 1 });
+          throw new Error('mutator failure');
+        }), /mutator failure/);
+        assert.deepEqual(await store.getSnapshot(id), before);
+        await verifyRestart(id);
+        await bounded(manager.updateCampaign(id, { currentLocation: 'Novo local' }));
+        assert.equal((await store.getSnapshot(id))?.campaign.name, 'Confirmado');
+        await verifyRestart(id);
+      });
+    }
+
+    await check('File: leitura antiga com cache vazio não reverte mutação confirmada', async () => {
+      const id = 'cold_read';
+      await new MemoryManager(fileStore).updateInventory(id, 'Player', 'Moeda', 10, 'set');
+      const coldStore = new FilePersistentMemoryStore(storeDataDir);
+      const manager = new MemoryManager(coldStore);
+      const capturedRead = deferred();
+      const releaseRead = deferred();
+      const originalReadFile = fs.promises.readFile;
+      let held = false;
+      (fs.promises as any).readFile = async (...args: any[]) => {
+        const data = await (originalReadFile as Function)(...args);
+        if (!held && String(args[0]) === path.join(storeDataDir, `memory_${id}.json`)) {
+          held = true;
+          capturedRead.resolve();
+          await releaseRead.promise;
+        }
+        return data;
+      };
+      const oldRead = coldStore.getSnapshot(id);
+      try {
+        await bounded(capturedRead.promise);
+        // A leitura reteve os bytes antigos; uma segunda leitura permite confirmar +2.
+        await bounded(manager.updateInventory(id, 'Player', 'Moeda', 2, 'add'));
+        releaseRead.resolve();
+        assert.equal((await oldRead)?.inventory[0].quantity, 12);
+        await manager.updateInventory(id, 'Player', 'Moeda', 3, 'add');
+        assert.equal((await manager.getInventory(id, 'Player'))[0].quantity, 15);
+        assert.equal((await new FilePersistentMemoryStore(storeDataDir).getSnapshot(id))?.inventory[0].quantity, 15);
+      } finally {
+        releaseRead.resolve();
+        try {
+          await oldRead;
+        } finally {
+          fs.promises.readFile = originalReadFile;
+        }
+      }
+    });
+
+    for (const method of ['writeFile', 'rename'] as const) {
+      await check(`File: falha de ${method} em mutateSnapshot preserva commit e fila`, async () => {
+        const id = `io_${method}`;
+        const manager = new MemoryManager(fileStore);
+        await manager.updateRelationship(id, 'Player', 'NPC', { trust: 10 });
+        const before = await fileStore.getSnapshot(id);
+        const original = fs.promises[method];
+        let injected = false;
+        (fs.promises as any)[method] = async (...args: any[]) => {
+          if (String(args[0]).startsWith(path.join(storeDataDir, `memory_${id}.json.tmp.`))) {
+            injected = true;
+            throw new Error(`injected ${method}`);
+          }
+          return (original as Function)(...args);
+        };
+        try {
+          await assert.rejects(manager.updateRelationship(id, 'Player', 'NPC', { trustChange: 5 }),
+            new RegExp(`injected ${method}`));
+          assert.equal(injected, true);
+          assert.deepEqual(await fileStore.getSnapshot(id), before);
+          assert.deepEqual(await new FilePersistentMemoryStore(storeDataDir).getSnapshot(id), before);
+        } finally {
+          (fs.promises as any)[method] = original;
+        }
+        await bounded(manager.updateRelationship(id, 'Player', 'NPC', { trustChange: 2 }));
+        assert.equal((await manager.getRelationship(id, 'Player', 'NPC'))?.trust, 12);
+        assert.deepEqual(await new FilePersistentMemoryStore(storeDataDir).getSnapshot(id),
+          await fileStore.getSnapshot(id));
+        assert.equal((await fs.promises.readdir(storeDataDir)).some((file) => file.includes('.tmp.')), false);
+      });
+    }
   } finally {
+    SemanticMemoryManager.prototype.generateEmbedding = originalEmbedding;
     // Cleanup garantido
     try {
       await fs.promises.rm(testBaseDir, { recursive: true, force: true });
       console.log('\nHigiene de persistência: Diretório temporário removido com sucesso.');
     } catch (cleanErr: any) {
       console.error('Erro na limpeza do diretório temporário:', cleanErr.message);
+      throw cleanErr;
     }
   }
 

@@ -4,6 +4,7 @@ import os from 'os';
 import { FilePersistentMemoryStore } from '../server/engine/memory/filePersistentStore';
 import { MemoryManager } from '../server/engine/memory/memoryManager';
 import { CampaignMemorySnapshot, NPC } from '../server/engine/memory/types';
+import { SemanticMemoryManager } from '../server/engine/memory/semanticMemory';
 
 function createSampleSnapshot(campaignId: string, name: string = 'Campanha Teste'): CampaignMemorySnapshot {
   return {
@@ -68,6 +69,8 @@ async function runAllSnapshotPersistenceTests() {
   // Criação isolada em diretório temporário do sistema operacional
   const testBaseDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'rpg_snapshot_test_'));
   const storeDataDir = path.join(testBaseDir, 'rpg_memory');
+  const originalEmbedding = SemanticMemoryManager.prototype.generateEmbedding;
+  SemanticMemoryManager.prototype.generateEmbedding = async () => [1, 0];
 
   try {
     const store = new FilePersistentMemoryStore(storeDataDir);
@@ -459,71 +462,27 @@ async function runAllSnapshotPersistenceTests() {
     }
 
     // =========================================================================
-    // CENÁRIO 9: Investigação e Verificação do Fenômeno de Lost Update em Read-Modify-Write
+    // CENÁRIO 9: Prevenção de lost update pelo caminho oficial de mutação
     // =========================================================================
-    console.log('\n--- CENÁRIO 9: Investigação de Lost Update em Ciclos Read-Modify-Write Concorrentes ---');
+    console.log('\n--- CENÁRIO 9: Mutações concorrentes preservam ambos os NPCs ---');
     try {
       const campId = 'camp_rmw_investigation';
       const initial = createSampleSnapshot(campId, 'Campanha Base RMW');
       await store.saveSnapshot(initial);
 
-      // Dois fluxos concorrentes lêem a versão V0 simultaneamente
-      const fluxo1_snapshot = await store.getSnapshot(campId);
-      const fluxo2_snapshot = await store.getSnapshot(campId);
-
-      if (!fluxo1_snapshot || !fluxo2_snapshot) throw new Error('Falha ao ler snapshots iniciais.');
-
-      // Fluxo 2 adiciona o NPC "Balerion" e salva
-      fluxo2_snapshot.npcs['balerion'] = {
-        id: 'balerion',
-        name: 'Balerion, o Dragão',
-        status: 'alive',
-        location: 'Valíria',
-        faction: 'Targaryen',
-        personalityNotes: 'Monstruoso',
-        goals: [],
-        secrets: [],
-        inventory: [],
-        relationships: {},
-      };
-      await store.saveSnapshot(fluxo2_snapshot);
-
-      // Validação intermediária: Balerion está no disco e no cache
-      const aposFluxo2 = await store.getSnapshot(campId);
-      if (!aposFluxo2?.npcs['balerion']) {
-        throw new Error('Balerion deveria estar presente após o Fluxo 2.');
+      const manager = new MemoryManager(store);
+      await Promise.all([
+        manager.createNPC(campId, { id: 'balerion', name: 'Balerion, o Dragão' }),
+        manager.createNPC(campId, { id: 'vhagar', name: 'Vhagar, a Rainha' }),
+      ]);
+      for (const reader of [store, new FilePersistentMemoryStore(storeDataDir)]) {
+        const state = await reader.getSnapshot(campId);
+        if (!state?.npcs.eldrin || !state.npcs.balerion || !state.npcs.vhagar) {
+          throw new Error('Lost update: NPC original ou concorrente ausente no cache/disco.');
+        }
       }
 
-      // Agora o Fluxo 1, que ainda tem em mãos o snapshot V0 (onde Balerion não existe),
-      // adiciona o NPC "Vhagar" e chama saveSnapshot
-      fluxo1_snapshot.npcs['vhagar'] = {
-        id: 'vhagar',
-        name: 'Vhagar, a Rainha',
-        status: 'alive',
-        location: 'Porto Real',
-        faction: 'Targaryen',
-        personalityNotes: 'Antiga',
-        goals: [],
-        secrets: [],
-        inventory: [],
-        relationships: {},
-      };
-      await store.saveSnapshot(fluxo1_snapshot);
-
-      // Verificação do resultado final:
-      const estadoFinal = await store.getSnapshot(campId);
-      if (!estadoFinal) throw new Error('Estado final nulo.');
-
-      const temVhagar = !!estadoFinal.npcs['vhagar'];
-      const temBalerion = !!estadoFinal.npcs['balerion'];
-
-      if (temVhagar && !temBalerion) {
-        console.log('ℹ️ Comportamento confirmado (Lost Update): O lock de saveSnapshot protegeu a integridade física do arquivo e do cache, mas o ciclo Read-Modify-Write concorrente sem lock no ciclo completo sobrescreveu Balerion (lost update a nível de aplicação).');
-      } else if (temVhagar && temBalerion) {
-        console.log('ℹ️ Ambos os NPCs foram preservados.');
-      }
-
-      console.log('✅ Cenário 9 PASSOU: Diagnóstico de Lost Update realizado com sucesso e documentado.');
+      console.log('✅ Cenário 9 PASSOU: NPCs preservados inclusive após restart.');
       passed++;
     } catch (err: any) {
       console.error('❌ Cenário 9 FALHOU:', err.message);
@@ -581,6 +540,7 @@ async function runAllSnapshotPersistenceTests() {
     }
 
   } finally {
+    SemanticMemoryManager.prototype.generateEmbedding = originalEmbedding;
     // Cleanup incondicional do diretório temporário
     try {
       await fs.promises.rm(testBaseDir, { recursive: true, force: true });

@@ -126,8 +126,12 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     try {
       const data = await fs.readFile(filePath, 'utf-8');
       const snapshot: CampaignMemorySnapshot = JSON.parse(data);
-      this.snapshotCache.set(campaignId, cloneSnapshot(snapshot));
-      return cloneSnapshot(snapshot);
+      // Uma leitura iniciada com cache vazio pode terminar após um commit.
+      // Nunca substituir a versão já publicada por bytes capturados antes dele.
+      if (!this.snapshotCache.has(campaignId)) {
+        this.snapshotCache.set(campaignId, cloneSnapshot(snapshot));
+      }
+      return cloneSnapshot(this.snapshotCache.get(campaignId)!);
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
         return null;
