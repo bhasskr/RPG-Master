@@ -1,5 +1,7 @@
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import { SemanticMemoryManager } from '../server/engine/memory/semanticMemory';
 import { GameEngine } from '../server/engine/gameEngine';
 import { GameStateManager } from '../server/engine/gameState/gameStateManager';
 import { MemoryManager } from '../server/engine/memory/memoryManager';
@@ -14,7 +16,7 @@ async function runAllEditTests() {
   let passed = 0;
   let failed = 0;
 
-  const testBaseDir = path.join(process.cwd(), 'data', 'test_edit_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+  const testBaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rpg_edit_'));
   const memoryDir = path.join(testBaseDir, 'memory');
   const stateDir = path.join(testBaseDir, 'gamestate');
 
@@ -63,6 +65,8 @@ async function runAllEditTests() {
     });
   };
 
+  const originalEmbedding = SemanticMemoryManager.prototype.generateEmbedding;
+  SemanticMemoryManager.prototype.generateEmbedding = async () => [1, 0];
   try {
     // -------------------------------------------------------------
     // CENÁRIO 1: Edit bem-sucedido
@@ -577,12 +581,11 @@ async function runAllEditTests() {
       const waitEdit1Commit = new Promise<void>((resolve) => {
         allowEdit1ToCommit = resolve;
       });
+      let edit1Committed!: () => void;
+      const waitEdit1Committed = new Promise<void>((resolve) => { edit1Committed = resolve; });
 
-      let callCount = 0;
       mockGenerateMaster = async (ctx: any) => {
-        callCount++;
-        const currentCall = callCount;
-        if (currentCall === 1) {
+        if (ctx.currentUserInput === 'Peço autorização para cruzar a fronteira.') {
           // Edit 1 está gerando; avisa que leu o estado inicial e espera Edit 2 também iniciar
           edit1InGeneration();
           await edit2Ready;
@@ -596,8 +599,8 @@ async function runAllEditTests() {
         } else {
           // Edit 2 está gerando com base no mesmo estado inicial
           edit2InGeneration();
-          // Edit 2 aguarda um instante para que Edit 1 commite primeiro
-          await new Promise((r) => setTimeout(r, 50));
+          // Esperar o commit observado, não uma estimativa de duração do I/O.
+          await waitEdit1Committed;
           return {
             text: 'Resposta Edit 2: O rei franze o cenho e nega o pedido.',
             executedTools: [],
@@ -616,7 +619,8 @@ async function runAllEditTests() {
 
       // Permite que Edit 1 complete e commite primeiro
       allowEdit1ToCommit!();
-      const res1 = await promise1;
+      try { await promise1; }
+      finally { edit1Committed(); }
 
       let p2Error: any = null;
       try {
@@ -649,10 +653,11 @@ async function runAllEditTests() {
     console.error('\n[ERRO NO TESTE]:', err);
     failed++;
   } finally {
+    SemanticMemoryManager.prototype.generateEmbedding = originalEmbedding;
     try {
       fs.rmSync(testBaseDir, { recursive: true, force: true });
-    } catch {
-      // ignore cleanup error
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -660,6 +665,7 @@ async function runAllEditTests() {
   console.log(`RESULTADO DOS TESTES DE EDIT: ${passed} APROVADOS, ${failed} FALHAS`);
   console.log('===============================================================');
 
+  (globalThis as any).__RPG_SUITE_COMPLETE__ = true;
   if (failed > 0) {
     process.exit(1);
   }

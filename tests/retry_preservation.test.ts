@@ -1,5 +1,7 @@
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
+import { SemanticMemoryManager } from '../server/engine/memory/semanticMemory';
 import { GameEngine } from '../server/engine/gameEngine';
 import { GameStateManager } from '../server/engine/gameState/gameStateManager';
 import { MemoryManager } from '../server/engine/memory/memoryManager';
@@ -14,7 +16,7 @@ async function runAllRetryTests() {
   let passed = 0;
   let failed = 0;
 
-  const testBaseDir = path.join(process.cwd(), 'data', 'test_retry_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+  const testBaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rpg_retry_'));
   const memoryDir = path.join(testBaseDir, 'memory');
   const stateDir = path.join(testBaseDir, 'gamestate');
 
@@ -64,6 +66,8 @@ async function runAllRetryTests() {
     });
   };
 
+  const originalEmbedding = SemanticMemoryManager.prototype.generateEmbedding;
+  SemanticMemoryManager.prototype.generateEmbedding = async () => [1, 0];
   try {
     // -------------------------------------------------------------
     // CENÁRIO 1: Falha de geração: resposta anterior intacta
@@ -486,11 +490,12 @@ async function runAllRetryTests() {
     console.error('\n[ERRO NO TESTE]:', err);
     failed++;
   } finally {
+    SemanticMemoryManager.prototype.generateEmbedding = originalEmbedding;
     // Limpa diretório temporário de testes
     try {
       fs.rmSync(testBaseDir, { recursive: true, force: true });
     } catch (e) {
-      // ignore cleanup error
+      throw e;
     }
   }
 
@@ -498,6 +503,7 @@ async function runAllRetryTests() {
   console.log(`RESULTADO DOS TESTES DE RETRY: ${passed} APROVADOS, ${failed} FALHAS`);
   console.log('===============================================================');
 
+  (globalThis as any).__RPG_SUITE_COMPLETE__ = true;
   if (failed > 0) {
     process.exit(1);
   }

@@ -365,7 +365,8 @@ async function runAllMemoryConcurrencyTests() {
         assert.equal(rel?.trust, 15);
         assert.equal(rel?.hostility, 9);
         assert.equal(rel?.familiarity, 3);
-        assert.deepEqual(new Set(rel?.importantHistory), new Set(['efeito 2', 'efeito 3']));
+        assert.deepEqual(rel?.importantHistory.slice().sort(), ['efeito 2', 'efeito 3'],
+          'Histórico deve preservar ambos os efeitos sem duplicatas');
         const snapshot = await store.getSnapshot(id);
         const index = snapshot?.semanticRecords?.find((record) => record.type === 'relationship');
         assert.equal(index?.text, new SemanticMemoryManager().formatRelationship(rel!));
@@ -534,6 +535,7 @@ async function runAllMemoryConcurrencyTests() {
   console.log(`RESULTADO FINAL: ${passed} PASSOU | ${failed} FALHOU`);
   console.log('===============================================================');
 
+  (globalThis as any).__RPG_SUITE_COMPLETE__ = true;
   if (failed > 0) {
     process.exit(1);
   }

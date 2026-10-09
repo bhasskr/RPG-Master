@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { SemanticMemoryManager } from '../server/engine/memory/semanticMemory';
 import { GameEngine } from '../server/engine/gameEngine';
 import { GameStateManager } from '../server/engine/gameState/gameStateManager';
 import { MemoryManager } from '../server/engine/memory/memoryManager';
@@ -31,6 +32,8 @@ async function runAllIdempotencyTests() {
   const gameStateManager = new GameStateManager(stateDir);
   const idempotencyManager = new IdempotencyManager(idemDir);
 
+  const originalEmbedding = SemanticMemoryManager.prototype.generateEmbedding;
+  SemanticMemoryManager.prototype.generateEmbedding = async () => [1, 0];
   try {
 
   let narratorCallCount = 0;
@@ -112,6 +115,8 @@ async function runAllIdempotencyTests() {
 
     const idempotencyKey = 'key_concurrent_flight_123';
     let engineExecutions = 0;
+    let releaseExecution!: () => void;
+    const executionGate = new Promise<void>((resolve) => { releaseExecution = resolve; });
 
     const executeAction = async (msg: string) => {
       const { req, res, next } = createMockExpress(
@@ -129,8 +134,7 @@ async function runAllIdempotencyTests() {
           getPayload: (r) => ({ campaignId, message: r.body.message }),
           execute: async () => {
             engineExecutions++;
-            // Pequeno delay artificial para simular processamento assíncrono
-            await new Promise((r) => setTimeout(r, 40));
+            await executionGate;
             const output = await gameEngine.processPlayerAction(campaignId, msg);
             return { statusCode: 200, body: { success: true, data: output } };
           },
@@ -142,10 +146,24 @@ async function runAllIdempotencyTests() {
     };
 
     // Dispara 2 requisições concorrentes exatamente ao mesmo tempo
-    const [res1, res2] = await Promise.all([
+    const requests = [
       executeAction('Avanço para a torre'),
       executeAction('Avanço para a torre'),
-    ]);
+    ];
+    // Observa a consulta real à entrada pendente: liberar antes dela poderia
+    // testar apenas replay em disco, sem provar deduplicação in-flight.
+    const inFlight = (idempotencyManager as any).inFlightRequests as Map<string, unknown>;
+    const originalGet = inFlight.get;
+    let observedPending = false;
+    inFlight.get = function (key) {
+      const entry = originalGet.call(this, key);
+      if (entry) { observedPending = true; releaseExecution(); }
+      return entry;
+    };
+    let res1: any, res2: any;
+    try { [res1, res2] = await Promise.all(requests); }
+    finally { inFlight.get = originalGet; releaseExecution(); }
+    if (!observedPending) throw new Error('Segunda requisição não observou execução pendente');
 
     if (engineExecutions !== 1) {
       throw new Error(`Engine deveria ter executado exatamente 1 vez, mas executou ${engineExecutions} vezes.`);
@@ -924,6 +942,7 @@ async function runAllIdempotencyTests() {
   }
 
   } finally {
+    SemanticMemoryManager.prototype.generateEmbedding = originalEmbedding;
     // Cleanup incondicional do diretório temporário raiz da suíte (sucesso ou falha)
     try {
       await fs.promises.rm(testBaseDir, { recursive: true, force: true });
@@ -953,6 +972,7 @@ async function runAllIdempotencyTests() {
   console.log('Higiene de persistência: testBaseDir removido e data/ limpo com sucesso.');
   console.log('===============================================================');
 
+  (globalThis as any).__RPG_SUITE_COMPLETE__ = true;
   if (failed > 0) {
     process.exit(1);
   }
