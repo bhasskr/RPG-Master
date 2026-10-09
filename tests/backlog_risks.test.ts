@@ -7,8 +7,9 @@ import { executeRollCheck } from '../server/engine/dice/diceEngine';
 import { ai, deferred, within, withEngine, runCases } from './helpers/engineHarness';
 
 const cases: Record<string, () => Promise<void>> = {};
-for (const operation of ['retry', 'edit', 'delete'] as const) {
-  cases[`${operation === 'delete' ? 'P0.5' : 'P0.2'}: extração antiga não aplica item após ${operation}`] = () =>
+// P0.2 migrou para extraction_revision.test.ts; demais diagnósticos preservados.
+for (const operation of ['delete']) {
+  cases[`P0.5: extração antiga não aplica item após ${operation}`] = () =>
     withEngine(async ({ engine, memory, drain }) => {
       const entered = deferred();
       const release = deferred();
@@ -31,8 +32,6 @@ for (const operation of ['retry', 'edit', 'delete'] as const) {
         const { campaignId } = await engine.startNewCampaign({ title: 'Extração suspensa' });
         await engine.processPlayerAction(campaignId, 'Observo o salão.');
         await within(entered.promise);
-        if (operation === 'retry') await engine.retryLastPlayerAction(campaignId);
-        if (operation === 'edit') await engine.editLastPlayerAction(campaignId, 'Observo o teto.');
         if (operation === 'delete') await engine.deleteCampaign(campaignId);
         release.resolve();
         await drain();

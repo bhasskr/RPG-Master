@@ -10,7 +10,10 @@ import {
   CampaignMemorySnapshot,
   ChatMessage,
   ExpectedTurnState,
+  ExtractionSource,
+  ExtractionCommit,
 } from './types';
+import { assertRevisable, extractionStatus, revisesNarrative } from './extractionRevision';
 
 /**
  * FilePersistentMemoryStore
@@ -226,6 +229,36 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     });
   }
 
+  // A autoridade de revisão não pode depender de uma hidratação atrasada do cache.
+  // Leitura usada apenas dentro da fila nas operações sensíveis à revisão.
+  private async readMessagesForRevision(campaignId: string): Promise<ChatMessage[]> {
+    try { return JSON.parse(await fs.readFile(this.getMessagesFilePath(campaignId), 'utf-8')); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw error;
+    }
+  }
+
+  async commitExtraction<T>(
+    campaignId: string, source: ExtractionSource,
+    apply: (snapshot: CampaignMemorySnapshot) => Promise<{ value: T; hasMutations: boolean }>
+  ): Promise<ExtractionCommit<T>> {
+    await this.ensureInitialized();
+    return this.executeWithCampaignWriteLock(campaignId, async () => {
+      const messages = await this.readMessagesForRevision(campaignId);
+      const latest = await this.internalGetSnapshot(campaignId);
+      const status = extractionStatus(messages.find((m) => m.id === source.messageId), latest, source);
+      if (status) return { status };
+      const working = cloneSnapshot(latest || this.createDefaultSnapshot(campaignId));
+      const result = await apply(working);
+      working.extractionReceipts = { ...working.extractionReceipts,
+        [source.messageId]: { revision: source.revision, turn: source.turn, hasMutations: result.hasMutations } };
+      // Revisões de chat usam a mesma fila: a origem continua autoritativa aqui.
+      await this.internalCommitSnapshot(campaignId, working);
+      return { status: 'applied', value: cloneSnapshot(result.value) };
+    });
+  }
+
   private async loadMessagesFromDisk(campaignId: string): Promise<ChatMessage[]> {
     const filePath = this.getMessagesFilePath(campaignId);
     try {
@@ -246,11 +279,8 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     await this.ensureInitialized();
 
     return this.executeWithCampaignWriteLock(campaignId, async () => {
-      if (!this.messagesCache.has(campaignId)) {
-        await this.loadMessagesFromDisk(campaignId);
-      }
-
-      const currentMessages = this.messagesCache.get(campaignId) || [];
+      // Um append não pode ressuscitar uma revisão antiga hidratada no cache.
+      const currentMessages = await this.readMessagesForRevision(campaignId);
       const updatedMessages = [...currentMessages, message];
 
       const filePath = this.getMessagesFilePath(campaignId);
@@ -292,13 +322,12 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     await this.ensureInitialized();
 
     return this.executeWithCampaignWriteLock(campaignId, async () => {
-      if (!this.messagesCache.has(campaignId)) {
-        await this.loadMessagesFromDisk(campaignId);
-      }
-
-      const currentMessages = this.messagesCache.get(campaignId) || [];
+      const currentMessages = await this.readMessagesForRevision(campaignId);
       const index = currentMessages.findIndex((m) => m.id === messageId);
       if (index === -1) return false;
+
+      const changed = revisesNarrative(currentMessages[index], updates);
+      if (changed) assertRevisable(currentMessages[index], await this.internalGetSnapshot(campaignId));
 
       const mergedMetadata = { ...currentMessages[index].metadata, ...updates.metadata };
       const updatedMessages = [...currentMessages];
@@ -306,6 +335,7 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
         ...currentMessages[index],
         ...updates,
         metadata: mergedMetadata,
+        revision: (currentMessages[index].revision ?? 0) + (changed ? 1 : 0),
       };
 
       const filePath = this.getMessagesFilePath(campaignId);
@@ -330,15 +360,11 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     });
   }
 
-  async replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage): Promise<ChatMessage> {
+  async replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage, expectedRevision?: number): Promise<ChatMessage> {
     await this.ensureInitialized();
 
     return this.executeWithCampaignWriteLock(campaignId, async () => {
-      if (!this.messagesCache.has(campaignId)) {
-        await this.loadMessagesFromDisk(campaignId);
-      }
-
-      const currentMessages = this.messagesCache.get(campaignId) || [];
+      const currentMessages = await this.readMessagesForRevision(campaignId);
       const index = currentMessages.findIndex((m) => m.id === messageId);
       if (index === -1) {
         throw new Error(`Mensagem ${messageId} não encontrada para substituição na campanha ${campaignId}.`);
@@ -346,7 +372,8 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
 
       // Cria cópia sem mutar o array em cache antes da confirmação em disco
       const updatedMessages = [...currentMessages];
-      updatedMessages[index] = { ...newMessage };
+      assertRevisable(currentMessages[index], await this.internalGetSnapshot(campaignId), expectedRevision);
+      updatedMessages[index] = { ...newMessage, revision: (currentMessages[index].revision ?? 0) + 1 };
 
       const filePath = this.getMessagesFilePath(campaignId);
       const tempPath = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -381,11 +408,7 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
     await this.ensureInitialized();
 
     return this.executeWithCampaignWriteLock(campaignId, async () => {
-      if (!this.messagesCache.has(campaignId)) {
-        await this.loadMessagesFromDisk(campaignId);
-      }
-
-      const currentMessages = this.messagesCache.get(campaignId) || [];
+      const currentMessages = await this.readMessagesForRevision(campaignId);
 
       // Se foi fornecido o estado esperado, valida estritamente antes de aplicar qualquer alteração
       if (expected) {
@@ -431,11 +454,12 @@ export class FilePersistentMemoryStore implements IPersistentMemoryStore {
 
       // Cria cópia sem mutar o array em cache antes da confirmação em disco
       const updatedMessages = [...currentMessages];
-      updatedMessages[userIndex] = { ...userMessage };
+      updatedMessages[userIndex] = { ...userMessage, revision: (currentMessages[userIndex].revision ?? 0) + 1 };
 
       const assistantIndex = assistantMessage.id ? updatedMessages.findIndex((m) => m.id === assistantMessage.id) : -1;
       if (assistantIndex !== -1) {
-        updatedMessages[assistantIndex] = { ...assistantMessage };
+        assertRevisable(currentMessages[assistantIndex], await this.internalGetSnapshot(campaignId), expected?.assistantRevision);
+        updatedMessages[assistantIndex] = { ...assistantMessage, revision: (currentMessages[assistantIndex].revision ?? 0) + 1 };
       } else {
         updatedMessages.splice(userIndex + 1, 0, { ...assistantMessage });
       }

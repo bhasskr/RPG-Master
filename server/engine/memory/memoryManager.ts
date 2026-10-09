@@ -21,7 +21,10 @@ import {
   MemoryOperationLog,
   CharacterKnowledgeBundle,
   ExpectedTurnState,
+  ExtractionSource,
+  ExtractionCommit,
 } from './types';
+import { InMemoryStore } from './inMemoryStore';
 import { FilePersistentMemoryStore } from './filePersistentStore';
 import { SemanticMemoryManager } from './semanticMemory';
 
@@ -90,6 +93,29 @@ export class MemoryManager {
    */
   public async getSnapshot(campaignId: string): Promise<CampaignMemorySnapshot | null> {
     return this.store.getSnapshot(campaignId);
+  }
+
+  /** Commit restrito à extração: regras existentes operam numa cópia descartável. */
+  public async commitExtraction<T>(
+    campaignId: string, source: ExtractionSource,
+    validate: (manager: MemoryManager) => Promise<{ value: T; hasMutations: boolean }>
+  ): Promise<ExtractionCommit<T>> {
+    let stagedLogs: MemoryOperationLog[] = [];
+    const result = await this.store.commitExtraction(campaignId, source, async (snapshot) => {
+      // Instância distinta: seus mutadores nunca readquirem a fila do store original.
+      const draftStore = new InMemoryStore();
+      await draftStore.saveSnapshot(snapshot);
+      const draft = new MemoryManager(draftStore);
+      draft.semanticManager = this.semanticManager;
+      const validated = await validate(draft);
+      Object.assign(snapshot, (await draftStore.getSnapshot(campaignId))!);
+      stagedLogs = draft.getLogs(campaignId, this.maxLogs);
+      return validated;
+    });
+    if (result.status === 'applied') {
+      this.logs = [...stagedLogs, ...this.logs].slice(0, this.maxLogs);
+    }
+    return result;
   }
 
   /**
@@ -1713,10 +1739,11 @@ export class MemoryManager {
   async replaceMessage(
     campaignId: string,
     messageId: string,
-    newMessage: ChatMessage
+    newMessage: ChatMessage,
+    expectedRevision?: number
   ): Promise<ChatMessage> {
     try {
-      const replaced = await this.store.replaceMessage(campaignId, messageId, newMessage);
+      const replaced = await this.store.replaceMessage(campaignId, messageId, newMessage, expectedRevision);
       this.recordLog({
         operation: 'UPDATE',
         functionName: 'replaceMessage',

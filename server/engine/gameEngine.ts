@@ -223,7 +223,8 @@ export class GameEngine {
       gameState,
       playerActionText,
       narratorResponse,
-      masterMessage.id
+      masterMessage.id,
+      masterMessage.revision ?? 0
     ).catch((err) => {
       console.warn(`[GameEngine] Extração de memória em segundo plano falhou no turno ${currentTurn}:`, err);
     });
@@ -309,7 +310,8 @@ export class GameEngine {
       const persistedOpeningMessage = await this.memoryManager.replaceMessage(
         campaignId,
         initialOpeningId,
-        replacementMessage
+        replacementMessage,
+        openingMessage.revision ?? 0
       );
 
       return {
@@ -481,7 +483,8 @@ export class GameEngine {
       persistedMasterMessage = await this.memoryManager.replaceMessage(
         campaignId,
         assistantMessageToReplace.id,
-        replacementMessage
+        replacementMessage,
+        assistantMessageToReplace.revision ?? 0
       );
     } else {
       // Ação sem resposta anterior: gravar nova mensagem
@@ -501,7 +504,8 @@ export class GameEngine {
       gameState,
       playerActionText,
       narratorResponse,
-      persistedMasterMessage.id
+      persistedMasterMessage.id,
+      persistedMasterMessage.revision ?? 0
     ).catch((err) => {
       console.warn(`[GameEngine] Extração de memória falhou no retry do turno ${currentTurn}:`, err);
     });
@@ -679,6 +683,7 @@ export class GameEngine {
         assistantMessageId: initialAssistantId,
         assistantContent: initialAssistantContent,
         assistantTurn: initialAssistantTurn,
+        assistantRevision: assistantMessageToReplace?.revision ?? 0,
       }
     );
 
@@ -689,7 +694,8 @@ export class GameEngine {
       gameState,
       newPlayerActionText,
       narratorResponse,
-      commitResult.assistantMessage.id
+      commitResult.assistantMessage.id,
+      commitResult.assistantMessage.revision ?? 0
     ).catch((err) => {
       console.warn(`[GameEngine] Extração de memória falhou no edit do turno ${currentTurn}:`, err);
     });
@@ -712,7 +718,8 @@ export class GameEngine {
     gameState: GameState,
     playerActionText: string,
     narratorResponse: { executedTools?: any[]; diceRolls?: any[]; text: string },
-    masterMessageId: string
+    masterMessageId: string,
+    masterMessageRevision: number = 0
   ): Promise<void> {
     try {
       const turnSnapshot = await this.memoryManager.getSnapshot(campaignId);
@@ -740,22 +747,22 @@ export class GameEngine {
       });
 
       // Validar e aplicar mudanças autorizadas
-      const validated = await MemoryValidator.validateAndApply(
-        campaignId,
-        memoryChanges,
-        this.memoryManager,
-        currentTurn
-      );
+      const commit = await this.memoryManager.commitExtraction(campaignId, {
+        messageId: masterMessageId, revision: masterMessageRevision, turn: currentTurn,
+      }, async (draft) => {
+        const validated = await MemoryValidator.validateAndApply(campaignId, memoryChanges, draft, currentTurn);
+        const hasMutations =
+          validated.validEvents.some((e: any) => e.consequences && e.consequences.length > 0) ||
+          validated.validKnowledge.length > 0 ||
+          validated.validRelationships.length > 0 ||
+          validated.validInventoryChanges.length > 0 ||
+          validated.validQuests.length > 0 ||
+          validated.validNPCUpdates.length > 0;
+        return { value: hasMutations, hasMutations };
+      });
 
-      const hasMutations = 
-        validated.validEvents.some((e: any) => e.consequences && e.consequences.length > 0) ||
-        validated.validKnowledge.length > 0 ||
-        validated.validRelationships.length > 0 ||
-        validated.validInventoryChanges.length > 0 ||
-        validated.validQuests.length > 0 ||
-        validated.validNPCUpdates.length > 0;
-
-      if (hasMutations) {
+      // Uma revisão substituída/consumida não toca snapshot nem metadata do chat.
+      if (commit.status === 'applied' && commit.value) {
         await this.memoryManager.updateMessage(campaignId, masterMessageId, {
           metadata: { hasMutations: true }
         });

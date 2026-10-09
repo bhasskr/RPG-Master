@@ -137,3 +137,42 @@ necessárias de HTTP/UI e consolidar a execução no ambiente oficial do projeto
 
 Próxima implementação única recomendada: P0.2, usando os dois diagnósticos de extração
 obsoleta como regressões. Preservar a ordem e o histórico do backlog canônico.
+
+## Atualização P0.2 — identidade da revisão (histórico acima preservado)
+
+- Os diagnósticos Retry/Edit foram convertidos para `extraction_revision.test.ts`:
+  18 casos aprovados. O executor inclui essa suíte na base.
+- Identidade: campanha + ID da resposta + turno + revision. Revisão ausente = 0.
+  O store incrementa a revisão na substituição, inclusive com texto idêntico.
+- Guard, aplicação e recibo compartilham a fila da campanha. O validator existente
+  trabalha com um manager/store temporário independente; só o snapshot final e seu
+  recibo são confirmados juntos. Não há lock reentrante na mesma instância.
+- Recibo persistente deduplica inclusive extração vazia e sobrevive à recriação do
+  store. Também protege Retry/Edit se a publicação posterior de hasMutations falhar.
+- Leituras usadas por guard, substituição, update e append de chat consultam disco
+  sob a fila; uma hidratação atrasada do cache não pode restaurar A no próximo turno.
+  O loader/cache de leitura geral não foi corrigido nesta rodada.
+- Casos cobertos: A pendente após Retry/Edit; B aplicável; consequências anteriores;
+  duplicação concorrente de Inventory/Relationship; revisão com texto igual;
+  edição direta de conteúdo; metadata sem nova revisão; legado; restart de store;
+  falha no draft e no rename; campanhas independentes; falha da flag no Engine;
+  hidratação antiga seguida de append e tentativa de aplicar A.
+- Validação relevante: revisão 18, memória 21, Retry 5, Edit 9, idempotência 11,
+  contratos 7: **71 casos aprovados** nas execuções concluídas. Contratos teve um
+  timeout inicial antes de emitir resultados; repetição isolada passou, sem ampliar
+  timeout nem enfraquecer asserções. Causa do timeout não foi confirmada.
+- Diagnósticos remanescentes: **1 aprovado / 2 falhando**, exit 1. P0.4 e P1.5
+  continuam falhando. O caso simples de delete passou por consequência do guard de
+  origem ausente; isso NÃO fecha P0.5 nem prova exclusão durante commit já iniciado.
+- Garantia limitada à mesma instância de store em um processo Node. Não há fila
+  durável/reexecução automática de extração pendente após restart nem migração que
+  reconstrua recibos históricos. Legado com hasMutations é preservado sem reaplicar.
+- Permanecem fora do escopo: transação completa do turno/P0.3; corrupção/P0.4;
+  exclusão concorrente, clear, publicação geral de cache e deleteMessage/P0.5;
+  D20; UI; causalidade de Relationship. deleteMessage, hoje sem caller de produção
+  além do wrapper no manager, ainda usa cache no File store e exige revisão em P0.5.
+- Embeddings no validator continuam dentro da seção crítica da campanha; avaliar
+  desempenho em P3.4. Outras campanhas possuem filas independentes.
+- A verificação TypeScript comparativa não encontrou novos tipos de diagnóstico
+  frente ao HEAD; dependências/tipos ausentes e erros preexistentes impedem declarar
+  typecheck global aprovado. Nenhuma dependência foi instalada.

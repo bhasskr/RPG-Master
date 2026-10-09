@@ -7,6 +7,8 @@ export type MessageRole = 'user' | 'assistant' | 'system';
 
 export interface ChatMessage {
   id: string;
+  /** Identidade da revisão persistida; saves anteriores equivalem à revisão 0. */
+  revision?: number;
   role: MessageRole;
   content: string;
   timestamp: number;
@@ -189,6 +191,7 @@ export interface CampaignMemorySnapshot {
   inventory: InventoryItem[];
   quests: Quest[];
   semanticRecords?: SemanticRecord[];
+  extractionReceipts?: Record<string, { revision: number; turn: number; hasMutations: boolean }>;
   updatedAt: number;
 }
 
@@ -227,12 +230,25 @@ export interface ExpectedTurnState {
   assistantMessageId?: string | null;
   assistantContent?: string | null;
   assistantTurn?: number;
+  assistantRevision?: number;
 }
+
+export interface ExtractionSource {
+  messageId: string;
+  revision: number;
+  turn: number;
+}
+
+export type ExtractionCommit<T> = { status: 'applied'; value: T } | { status: 'stale' | 'duplicate' };
 
 /**
  * Interface do Store persistente para a Memory Layer
  */
 export interface IPersistentMemoryStore {
+  commitExtraction<T>(
+    campaignId: string, source: ExtractionSource,
+    apply: (snapshot: CampaignMemorySnapshot) => Promise<{ value: T; hasMutations: boolean }>
+  ): Promise<ExtractionCommit<T>>;
   // Snapshot / Snapshot storage
   getSnapshot(campaignId: string): Promise<CampaignMemorySnapshot | null>;
   saveSnapshot(snapshot: CampaignMemorySnapshot): Promise<void>;
@@ -246,7 +262,7 @@ export interface IPersistentMemoryStore {
   saveMessage(campaignId: string, message: ChatMessage): Promise<void>;
   getMessages(campaignId: string, limit?: number): Promise<ChatMessage[]>;
   updateMessage(campaignId: string, messageId: string, updates: Partial<ChatMessage>): Promise<boolean>;
-  replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage): Promise<ChatMessage>;
+  replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage, expectedRevision?: number): Promise<ChatMessage>;
   replaceTurnMessages(
     campaignId: string,
     userMessage: ChatMessage,

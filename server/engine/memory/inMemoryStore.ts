@@ -8,7 +8,10 @@ import {
   CampaignMemorySnapshot,
   ChatMessage,
   ExpectedTurnState,
+  ExtractionSource,
+  ExtractionCommit,
 } from './types';
+import { assertRevisable, extractionStatus, revisesNarrative } from './extractionRevision';
 
 function cloneSnapshot<T>(target: T): T {
   if (target === undefined || target === null || typeof target !== 'object') {
@@ -121,6 +124,25 @@ export class InMemoryStore implements IPersistentMemoryStore {
     });
   }
 
+  async commitExtraction<T>(
+    campaignId: string, source: ExtractionSource,
+    apply: (snapshot: CampaignMemorySnapshot) => Promise<{ value: T; hasMutations: boolean }>
+  ): Promise<ExtractionCommit<T>> {
+    return this.executeWithCampaignLock(campaignId, async () => {
+      const latest = this.snapshots.get(campaignId) || null;
+      const message = (this.messagesByCampaign.get(campaignId) || []).find((m) => m.id === source.messageId);
+      const status = extractionStatus(message, latest, source);
+      if (status) return { status };
+      const working = cloneSnapshot(latest || this.createDefaultSnapshot(campaignId));
+      const result = await apply(working);
+      working.extractionReceipts = { ...working.extractionReceipts,
+        [source.messageId]: { revision: source.revision, turn: source.turn, hasMutations: result.hasMutations } };
+      working.updatedAt = Date.now();
+      this.snapshots.set(campaignId, cloneSnapshot(working));
+      return { status: 'applied', value: cloneSnapshot(result.value) };
+    });
+  }
+
   async saveMessage(campaignId: string, message: ChatMessage): Promise<void> {
     if (!this.messagesByCampaign.has(campaignId)) {
       this.messagesByCampaign.set(campaignId, []);
@@ -137,23 +159,32 @@ export class InMemoryStore implements IPersistentMemoryStore {
   }
 
   async updateMessage(campaignId: string, messageId: string, updates: Partial<ChatMessage>): Promise<boolean> {
+    return this.executeWithCampaignLock(campaignId, async () => {
     const list = this.messagesByCampaign.get(campaignId) || [];
     const index = list.findIndex((m) => m.id === messageId);
     if (index === -1) return false;
-    list[index] = { ...list[index], ...updates };
+    const changed = revisesNarrative(list[index], updates);
+    if (changed) assertRevisable(list[index], this.snapshots.get(campaignId) || null);
+    list[index] = { ...list[index], ...updates,
+      metadata: { ...list[index].metadata, ...updates.metadata },
+      revision: (list[index].revision ?? 0) + (changed ? 1 : 0) };
     return true;
+    });
   }
 
-  async replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage): Promise<ChatMessage> {
+  async replaceMessage(campaignId: string, messageId: string, newMessage: ChatMessage, expectedRevision?: number): Promise<ChatMessage> {
+    return this.executeWithCampaignLock(campaignId, async () => {
     const list = this.messagesByCampaign.get(campaignId) || [];
     const index = list.findIndex((m) => m.id === messageId);
     if (index === -1) {
       throw new Error(`Mensagem ${messageId} não encontrada para substituição na campanha ${campaignId}.`);
     }
     const newList = [...list];
-    newList[index] = { ...newMessage };
+    assertRevisable(list[index], this.snapshots.get(campaignId) || null, expectedRevision);
+    newList[index] = { ...newMessage, revision: (list[index].revision ?? 0) + 1 };
     this.messagesByCampaign.set(campaignId, newList);
     return newList[index];
+    });
   }
 
   async replaceTurnMessages(
@@ -162,6 +193,7 @@ export class InMemoryStore implements IPersistentMemoryStore {
     assistantMessage: ChatMessage,
     expected?: ExpectedTurnState
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage }> {
+    return this.executeWithCampaignLock(campaignId, async () => {
     const list = this.messagesByCampaign.get(campaignId) || [];
 
     if (expected) {
@@ -206,11 +238,12 @@ export class InMemoryStore implements IPersistentMemoryStore {
     }
 
     const newList = [...list];
-    newList[userIndex] = { ...userMessage };
+    newList[userIndex] = { ...userMessage, revision: (list[userIndex].revision ?? 0) + 1 };
 
     const assistantIndex = assistantMessage.id ? newList.findIndex((m) => m.id === assistantMessage.id) : -1;
     if (assistantIndex !== -1) {
-      newList[assistantIndex] = { ...assistantMessage };
+      assertRevisable(list[assistantIndex], this.snapshots.get(campaignId) || null, expected?.assistantRevision);
+      newList[assistantIndex] = { ...assistantMessage, revision: (list[assistantIndex].revision ?? 0) + 1 };
     } else {
       newList.splice(userIndex + 1, 0, { ...assistantMessage });
     }
@@ -223,6 +256,7 @@ export class InMemoryStore implements IPersistentMemoryStore {
       userMessage: finalUser,
       assistantMessage: finalAssistant,
     };
+    });
   }
 
   async deleteMessage(campaignId: string, messageId: string): Promise<boolean> {

@@ -10,6 +10,7 @@ const reliable = [
   'tests/edit_preservation.test.ts',
   'tests/idempotency.test.ts',
   'tests/engine_contracts.test.ts',
+  'tests/extraction_revision.test.ts',
 ];
 const risks = ['tests/backlog_risks.test.ts'];
 const args = process.argv.slice(2);
